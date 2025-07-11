@@ -1,1 +1,1 @@
-# Hallucinations.cloud
+Brian Demsey is an actuary, entrepreneur, and consultant with decades of experience helping organizations plan for retirement and manage risk. In 2023, after engaging deeply with ChatGPT—posing over 5,000 questions—he discovered AI's double-edged nature: while sometimes insightful, it can also hallucinate, confidently asserting false or fabricated information .
