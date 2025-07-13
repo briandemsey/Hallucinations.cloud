@@ -2,3 +2,4 @@ streamlit
 aiohttp
 openai
 nest_asyncio
+python-dotenv
