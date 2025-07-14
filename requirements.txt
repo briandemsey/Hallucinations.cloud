@@ -4,3 +4,4 @@ openai
 nest_asyncio
 python-dotenv
 anthropic
+google-generativeai
