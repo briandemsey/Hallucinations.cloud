@@ -1,7 +1,8 @@
 streamlit
 aiohttp
-openai
-nest_asyncio
+openai>=1.0.0
+httpx
 python-dotenv
+pandas
 anthropic
 google-generativeai
