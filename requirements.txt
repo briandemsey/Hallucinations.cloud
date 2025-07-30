@@ -1,3 +1,6 @@
+# Core dependencies
+streamlit
+pandas
 fastapi
 uvicorn[standard]
 python-dotenv
