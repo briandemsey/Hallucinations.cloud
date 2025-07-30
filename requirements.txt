@@ -1,7 +1,15 @@
-fastapi
-uvicorn[standard]
-python-dotenv
-openai
-anthropic
-google-generativeai
-cohere
+# FastAPI and server dependencies
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+python-multipart==0.0.6
+pydantic==2.5.0  # Changed from 2.5.3 to avoid build issues
+
+# Environment and utilities
+python-dotenv==1.0.0
+requests==2.31.0
+
+# AI/LLM API SDKs
+openai==1.12.0
+anthropic==0.18.1
+google-generativeai==0.3.2
+cohere==4.47
