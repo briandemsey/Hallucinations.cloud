@@ -232,9 +232,8 @@ def call_perplexity_sync(prompt):
             "authorization": f"Bearer {perplexity_key}"
         }
         
-        # Using the verified working model
         payload = {
-            "model": "sonar",  # This model is confirmed to work!
+            "model": "llama-3.1-sonar-small-128k-online",
             "messages": [
                 {
                     "role": "user",
@@ -255,15 +254,8 @@ def call_perplexity_sync(prompt):
             return ("Perplexity", "[Perplexity error: Invalid API key. Please check your PERPLEXITY_API_KEY]")
         elif response.status_code == 429:
             return ("Perplexity", "[Perplexity error: Rate limit exceeded]")
-        elif response.status_code == 400:
-            try:
-                error_data = response.json()
-                error_msg = error_data.get('error', {}).get('message', str(error_data))
-                return ("Perplexity", f"[Perplexity error: {error_msg}]")
-            except:
-                return ("Perplexity", f"[Perplexity error: HTTP 400 - {response.text[:300]}]")
         elif response.status_code != 200:
-            return ("Perplexity", f"[Perplexity error: HTTP {response.status_code} - {response.text[:200]}]")
+            return ("Perplexity", f"[Perplexity error: HTTP {response.status_code}]")
         
         data = response.json()
         
@@ -271,12 +263,10 @@ def call_perplexity_sync(prompt):
             content = data['choices'][0]['message']['content']
             return ("Perplexity", content.strip())
         else:
-            return ("Perplexity", f"[Perplexity error: Unexpected response - {str(data)[:200]}]")
+            return ("Perplexity", "[Perplexity error: Unexpected response format]")
             
-    except requests.exceptions.RequestException as e:
-        return ("Perplexity", f"[Perplexity network error: {str(e)}]")
     except Exception as e:
-        return ("Perplexity", f"[Perplexity error: {type(e).__name__} - {str(e)}]")
+        return ("Perplexity", f"[Perplexity error: {str(e)}]")
 
 def call_grok_sync(prompt):
     if not grok_key:
