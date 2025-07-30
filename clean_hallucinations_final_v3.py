@@ -223,7 +223,26 @@ def call_openrouter_sync(prompt):
         return ("OpenRouter", f"[OpenRouter error: {str(e)}]")
 
 def call_perplexity_sync(prompt):
-    return ("Perplexity", "[Perplexity temporarily disabled - API configuration needs verification]")
+    if not perplexity_key:
+        return ("Perplexity", "[Perplexity unavailable: missing API key]")
+    try:
+        # Perplexity uses OpenAI-compatible API
+        perplexity_client = OpenAI(
+            api_key=perplexity_key,
+            base_url="https://api.perplexity.ai"
+        )
+        response = perplexity_client.chat.completions.create(
+            model="llama-3.1-sonar-small-128k-online",  # or "llama-3.1-sonar-large-128k-online"
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant that provides accurate information."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.5,
+            max_tokens=500
+        )
+        return ("Perplexity", response.choices[0].message.content.strip())
+    except Exception as e:
+        return ("Perplexity", f"[Perplexity error: {str(e)}]")
 
 def call_grok_sync(prompt):
     if not grok_key:
