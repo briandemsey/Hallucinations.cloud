@@ -1,0 +1,20 @@
+# Render deployment configuration for Hallucinations.cloud
+services:
+  - type: web
+    name: hallucinations-cloud
+    env: python
+    region: oregon
+    plan: starter
+    buildCommand: pip install -r requirements.txt
+    startCommand: streamlit run Hallucinations_9_23.py --server.port=$PORT --server.address=0.0.0.0 --server.headless=true
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.9.18
+      - key: STREAMLIT_SERVER_HEADLESS
+        value: true
+      - key: STREAMLIT_BROWSER_GATHER_USAGE_STATS
+        value: false
+      - key: STREAMLIT_SERVER_ENABLE_CORS
+        value: false
+      - key: STREAMLIT_SERVER_ENABLE_XSRF_PROTECTION
+        value: false
