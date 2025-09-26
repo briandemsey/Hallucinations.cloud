@@ -1,10 +1,48 @@
-# Core dependencies
-streamlit
-pandas
-fastapi
-uvicorn[standard]
-python-dotenv
-openai
-anthropic
-google-generativeai
-cohere
+# Hallucinations.cloud Requirements
+# Updated for Streamlit application
+# Python 3.9+ recommended
+
+# Core Framework
+streamlit==1.29.0
+
+# Environment and utilities
+python-dotenv==1.0.0
+requests==2.31.0
+pandas==2.1.4
+
+# AI/LLM API SDKs - Updated to latest stable versions
+openai==1.40.0
+anthropic==0.34.0
+google-generativeai==0.3.2
+cohere==5.6.0
+
+# Payment & Authentication
+stripe==10.5.0
+twilio==9.2.0
+
+# Optional but recommended for production
+# Uncomment as needed:
+
+# For data export features
+# xlsxwriter==3.1.9
+# openpyxl==3.1.2
+
+# For enhanced security
+# cryptography==41.0.7
+
+# For production session storage
+# redis==5.0.1
+
+# For database connectivity (if migrating from Stripe metadata)
+# psycopg2-binary==2.9.9
+# sqlalchemy==2.0.23
+
+# For monitoring and logging
+# sentry-sdk==1.39.1
+
+# For rate limiting
+# slowapi==0.1.9
+
+# For async operations (if adding async features)
+# asyncio==3.4.3
+# aiohttp==3.9.1
