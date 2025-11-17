@@ -1,192 +1,152 @@
-# 🧠 Hallucinations.cloud H-LLM Multi-Model Platform
+# H-LLM Multi-Model REST API
 
-A sophisticated AI comparison platform that queries multiple Large Language Models simultaneously and provides reliability scoring through the proprietary H-Score algorithm.
+FastAPI backend for H-LLM Multi-Model iOS app.
 
-## 🚀 Features
+## Features
 
-- **8 AI Model Integrations**: GPT-4o, Claude 3, Gemini Pro, Cohere Command-R, Deepseek, WizardLM, Grok, Perplexity
-- **H-Score Analysis**: Proprietary algorithm for measuring response reliability and consistency
-- **Authentication System**: Twilio SMS verification and email authentication
-- **Payment Integration**: Stripe subscription management with tiered pricing
-- **Real-time Comparison**: Parallel querying of multiple AI models
-- **Export Capabilities**: Download results in JSON and text formats
-- **Modular Architecture**: Clean, maintainable codebase structure
+- **Authentication**: Twilio SMS OTP verification with JWT tokens
+- **Multi-Model AI**: Query 8 AI models simultaneously
+  - OpenAI GPT-4o
+  - Anthropic Claude Sonnet 4.5
+  - Google Gemini 2.5 Flash
+  - Cohere Command R
+  - DeepSeek
+  - OpenRouter
+  - Perplexity
+  - xAI Grok
+- **H-Score**: Hallucination risk calculation (0-100)
+- **Red/Blue/Purple Team Analysis**: Security-style AI response evaluation
 
-## 📁 Project Structure
+## API Endpoints
 
-### Production Version
-- `Hallucinations_9_23.py` - Main production application with full features
-- `Hallucinations_9_23_FIXED.py` - Debug-friendly version for development
+### Authentication
 
-### Modular Architecture
+#### Send OTP
 ```
-├── main_modular.py          # Clean entry point
-├── run_modular.py           # Development runner
-├── config/                  # Configuration management
-├── auth/                    # Authentication modules
-├── models/                  # AI model integrations
-├── analysis/                # H-Score calculation engine
-├── ui/                      # User interface components
-├── utils/                   # Utilities and performance
-└── database/                # Database modules
+POST /api/auth/send-otp
+{
+  "phone_number": "+12345678900"
+}
 ```
 
-## 🛠️ Installation
-
-### Prerequisites
-- Python 3.8+
-- pip package manager
-
-### Setup
-1. Clone the repository
-```bash
-git clone <your-repo-url>
-cd HallucinationsCloudProject
+#### Verify OTP
+```
+POST /api/auth/verify-otp
+{
+  "phone_number": "+12345678900",
+  "code": "123456"
+}
 ```
 
-2. Install dependencies
+Returns:
+```json
+{
+  "success": true,
+  "tokens": {
+    "access": "eyJ...",
+    "refresh": "eyJ..."
+  },
+  "user": {
+    "phone": "+12345678900",
+    "id": "user_...",
+    "subscription_tier": "free"
+  }
+}
+```
+
+### Query
+
+#### Multi-Model Query
+```
+POST /api/query
+Headers: Authorization: Bearer <access_token>
+{
+  "query": "What is the capital of France?",
+  "enable_rag": true,
+  "enable_red_team": true,
+  "enable_blue_team": true,
+  "enable_purple_team": true,
+  "show_metadata": true
+}
+```
+
+Returns:
+```json
+{
+  "success": true,
+  "responses": [
+    {
+      "model": "OpenAI",
+      "response": "The capital of France is Paris.",
+      "metadata": {}
+    }
+  ],
+  "h_score": {
+    "final": 8.5,
+    "safety": 9.0,
+    "trust": 8.5,
+    "confidence": 8.0,
+    "quality": 10.0
+  },
+  "team_analysis": {
+    "red_team": "Risk Score: 2/10...",
+    "blue_team": "Trust Score: 8/10...",
+    "purple_team": "Confidence Score: 8/10..."
+  }
+}
+```
+
+### Health Check
+
+```
+GET /health
+```
+
+## Installation
+
+1. Install dependencies:
 ```bash
 pip install -r requirements.txt
 ```
 
-3. Configure environment variables
+2. Copy environment variables:
 ```bash
-cp .env.template .env
+cp .env.example .env
 # Edit .env with your API keys
 ```
 
-### Required API Keys
-- **OpenAI**: GPT-4o integration
-- **Anthropic**: Claude 3 integration
-- **Google**: Gemini Pro integration
-- **Cohere**: Command-R integration
-- **Deepseek**: Deepseek Chat integration
-- **OpenRouter**: WizardLM integration
-- **Grok**: X.AI integration
-- **Perplexity**: Sonar integration
-
-### Optional Services
-- **Stripe**: Payment processing (required for production)
-- **Twilio**: SMS authentication (required for production)
-- **Supabase**: Database backend (required for production)
-
-## 🚀 Running the Application
-
-### Development Mode (Modular)
+3. Run server:
 ```bash
-python run_modular.py
+python main.py
+# Or with uvicorn:
+uvicorn main:app --reload
 ```
-Features:
-- ✅ Demo authentication (5 queries)
-- ✅ Clean modular architecture
-- ✅ Fast development iteration
 
-### Production Mode
-```bash
-streamlit run Hallucinations_9_23.py
+4. Access API docs:
 ```
-Features:
-- ✅ Full authentication system
-- ✅ Stripe payment integration
-- ✅ Supabase database
-- ✅ Apple App Store review compatibility
+http://localhost:8000/docs
+```
 
-## 🎯 H-Score Algorithm
+## Development
 
-The proprietary H-Score system evaluates AI responses based on:
-- **Consistency**: Agreement between multiple models
-- **Completeness**: Thoroughness of responses
-- **Accuracy Indicators**: Detection of potential hallucinations
-- **Contradiction Analysis**: Identification of conflicting information
+- Development mode: Use code `123456` for OTP verification when Twilio is not configured
+- Swagger docs: http://localhost:8000/docs
+- ReDoc: http://localhost:8000/redoc
 
-Scores range from 0-10:
-- **7-10**: High reliability - Strong consensus
-- **5-7**: Moderate reliability - Some variation
-- **0-5**: Low reliability - Significant issues detected
+## Deployment
 
-## 🍎 Apple App Store Integration
+Deploy to Render.com:
 
-The application includes special authentication bypass for Apple App Store review:
-- **Test Phone**: +13014426175
-- **Verification Code**: 612485
+1. Connect GitHub repository
+2. Set environment variables in Render dashboard
+3. Build command: `pip install -r requirements.txt`
+4. Start command: `uvicorn main:app --host 0.0.0.0 --port $PORT`
 
-This allows Apple's review team to test the application without requiring live SMS verification.
+## TODO
 
-## 📊 Architecture Benefits
-
-### Modular Version Advantages
-- Individual component testing
-- Faster development iteration
-- Better code maintainability
-- Team collaboration support
-- Clear separation of concerns
-
-### Production Version Features
-- Comprehensive authentication
-- Payment processing
-- Database persistence
-- Full feature set
-- Production-ready stability
-
-## 🔧 Development Workflow
-
-1. **Feature Development**: Work in modular version
-2. **Testing**: Use demo authentication for quick iteration
-3. **Integration**: Port tested features to production
-4. **Deployment**: Deploy via existing production pipeline
-
-## 📝 API Documentation
-
-### Supported Models
-| Provider | Model | Status |
-|----------|-------|--------|
-| OpenAI | GPT-4o Mini | ✅ Active |
-| Anthropic | Claude 3 Haiku | ✅ Active |
-| Google | Gemini Pro | ✅ Active |
-| Cohere | Command-R | ✅ Active |
-| Deepseek | Deepseek Chat | 🔄 Pending |
-| OpenRouter | WizardLM | 🔄 Pending |
-| Grok | Grok-1 | 🔄 Pending |
-| Perplexity | Sonar | 🔄 Pending |
-
-## 💰 Pricing Tiers
-
-- **Free**: 5 queries per session
-- **Basic**: $9.99/month - 100 queries
-- **Professional**: $29.99/month - 500 queries
-- **Enterprise**: $99.99/month - Unlimited queries
-
-## 🔐 Security Features
-
-- Environment variable protection
-- API key encryption
-- Secure payment processing
-- Phone verification system
-- Content moderation integration
-
-## 📈 Performance
-
-- **Parallel Processing**: Simultaneous model querying
-- **Caching System**: Response optimization
-- **Session Management**: Efficient state handling
-- **Memory Optimization**: Resource management
-
-## 🤝 Contributing
-
-This is a production application. For development:
-1. Use the modular version for feature development
-2. Test thoroughly before integration
-3. Follow existing code patterns
-4. Maintain security best practices
-
-## 📄 License
-
-Proprietary software - All rights reserved
-
-## 🆘 Support
-
-For technical support or feature requests, please contact the development team.
-
----
-
-**Built with ❤️ using Streamlit, Python, and 8 powerful AI models**
+- [ ] Connect to Supabase database
+- [ ] Implement user subscription management
+- [ ] Add Apple In-App Purchase receipt validation
+- [ ] Add rate limiting
+- [ ] Add request caching
+- [ ] Add RAG (Retrieval-Augmented Generation)
