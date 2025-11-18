@@ -61,7 +61,10 @@ def call_openai(prompt: str, enable_rag: bool = True, show_metadata: bool = Fals
 
         return {"model": "OpenAI", "response": answer}
     except Exception as e:
-        return {"model": "OpenAI", "response": f"[OpenAI error: {str(e)}]"}
+        # More detailed error logging
+        error_type = type(e).__name__
+        error_msg = str(e)
+        return {"model": "OpenAI", "response": f"[OpenAI {error_type}: {error_msg}]"}
 
 
 def call_claude(prompt: str, enable_rag: bool = True, show_metadata: bool = False) -> Dict[str, Any]:
