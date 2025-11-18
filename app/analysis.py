@@ -254,6 +254,59 @@ async def run_team_analysis(
     }
 
 
+# ============= CONTRADICTION ANALYSIS =============
+
+def perform_contradiction_analysis(query: str, responses: List[Dict[str, Any]]) -> str:
+    """Analyze model responses for contradictions and disagreements"""
+    if not openai_client:
+        return "Contradiction analysis unavailable (OpenAI API key required)"
+
+    import time
+    max_attempts = 3
+    base_delay = 2
+
+    model_responses = "\n\n".join([f"**{r['model']}**: {r['response']}" for r in responses])
+
+    contradiction_prompt = f"""
+    Analyze these AI model responses for contradictions or significant disagreements:
+
+    ORIGINAL QUERY: {query}
+
+    AI RESPONSES:
+    {model_responses}
+
+    Provide a brief analysis of any contradictions found, or confirm if responses are generally consistent.
+    Focus on:
+    1. Key Points of Agreement
+    2. Notable Differences or Contradictions
+    3. Variations in Perspective or Emphasis
+    4. Overall Consistency Assessment
+
+    Format as numbered sections with bullet points for clarity.
+    """
+
+    for attempt in range(max_attempts):
+        try:
+            response = openai_client.chat.completions.create(
+                model="gpt-4o",
+                messages=[
+                    {"role": "system", "content": "You are an AI analysis expert specializing in detecting contradictions and inconsistencies across multiple AI model responses."},
+                    {"role": "user", "content": contradiction_prompt}
+                ],
+                temperature=0.3,
+                max_tokens=800
+            )
+
+            return response.choices[0].message.content.strip()
+
+        except Exception as e:
+            if attempt == max_attempts - 1:
+                return f"Contradiction analysis failed: {str(e)}"
+            delay = base_delay * (2 ** attempt)
+            time.sleep(delay)
+            continue
+
+
 # ============= H-SCORE CALCULATION =============
 
 def extract_score_from_analysis(analysis_text: str, score_type: str = "Risk Score") -> float:

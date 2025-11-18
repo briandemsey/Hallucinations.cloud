@@ -33,7 +33,7 @@ app.add_middleware(
 # Import modules (to be created)
 from app.auth import send_otp, verify_otp_code
 from app.ai_models import query_all_models
-from app.analysis import calculate_h_score, run_team_analysis
+from app.analysis import calculate_h_score, run_team_analysis, perform_contradiction_analysis
 
 
 # ============= REQUEST/RESPONSE MODELS =============
@@ -61,6 +61,7 @@ class QueryRequest(BaseModel):
     enable_red_team: bool = True
     enable_blue_team: bool = True
     enable_purple_team: bool = True
+    enable_contradiction: bool = True
     show_metadata: bool = True
 
 class AIResponse(BaseModel):
@@ -85,6 +86,7 @@ class QueryResponse(BaseModel):
     responses: List[AIResponse]
     h_score: Optional[HScore] = None
     team_analysis: Optional[TeamAnalysis] = None
+    contradiction_analysis: Optional[str] = None
 
 
 # ============= AUTHENTICATION ENDPOINTS =============
@@ -164,6 +166,14 @@ async def query_endpoint(
                 enable_purple=request.enable_purple_team
             )
 
+        # Run contradiction analysis if enabled
+        contradiction_analysis = None
+        if request.enable_contradiction:
+            contradiction_analysis = perform_contradiction_analysis(
+                query=request.query,
+                responses=model_responses
+            )
+
         # Calculate H-Score
         h_score = calculate_h_score(
             responses=model_responses,
@@ -183,7 +193,8 @@ async def query_endpoint(
                 for resp in model_responses
             ],
             h_score=HScore(**h_score),
-            team_analysis=TeamAnalysis(**team_analysis) if team_analysis else None
+            team_analysis=TeamAnalysis(**team_analysis) if team_analysis else None,
+            contradiction_analysis=contradiction_analysis
         )
 
     except Exception as e:
