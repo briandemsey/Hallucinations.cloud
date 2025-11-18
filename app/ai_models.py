@@ -189,7 +189,7 @@ def call_openrouter(prompt: str, enable_rag: bool = True, show_metadata: bool = 
         return {"model": "OpenRouter", "response": f"[OpenRouter error: {str(e)}]"}
 
 
-def call_perplexity(prompt: str) -> Dict[str, Any]:
+def call_perplexity(prompt: str, enable_rag: bool = True, show_metadata: bool = False) -> Dict[str, Any]:
     """Perplexity"""
     if not PERPLEXITY_API_KEY:
         return {"model": "Perplexity", "response": "[Perplexity unavailable: missing API key]"}
@@ -295,10 +295,8 @@ async def query_all_models(
     with ThreadPoolExecutor(max_workers=8) as executor:
         future_to_model = {
             executor.submit(func, query, enable_rag, show_metadata): func
-            for func in model_functions[:-1]  # All except Perplexity
+            for func in model_functions  # All models have same signature now
         }
-        # Perplexity has different signature
-        future_to_model[executor.submit(call_perplexity, query)] = call_perplexity
 
         for future in as_completed(future_to_model):
             try:
