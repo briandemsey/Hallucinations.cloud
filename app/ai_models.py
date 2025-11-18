@@ -43,29 +43,41 @@ if GOOGLE_API_KEY:
 # ============= AI MODEL FUNCTIONS =============
 
 def call_openai(prompt: str, enable_rag: bool = True, show_metadata: bool = False) -> Dict[str, Any]:
-    """OpenAI GPT-4o"""
+    """OpenAI GPT-4o with manual retry and exponential backoff"""
     if not openai_client:
         return {"model": "OpenAI", "response": "[OpenAI unavailable: missing API key]"}
 
-    try:
-        response = openai_client.chat.completions.create(
-            model="gpt-4o",
-            messages=[
-                {"role": "system", "content": "You are a helpful assistant with access to current information."},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0.5,
-            max_tokens=600
-        )
+    import time
+    max_attempts = 4
+    base_delay = 2  # seconds
 
-        answer = response.choices[0].message.content.strip()
+    for attempt in range(max_attempts):
+        try:
+            response = openai_client.chat.completions.create(
+                model="gpt-4o",
+                messages=[
+                    {"role": "system", "content": "You are a helpful assistant with access to current information."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.5,
+                max_tokens=600
+            )
 
-        return {"model": "OpenAI", "response": answer}
-    except Exception as e:
-        # More detailed error logging
-        error_type = type(e).__name__
-        error_msg = str(e)
-        return {"model": "OpenAI", "response": f"[OpenAI {error_type}: {error_msg}]"}
+            answer = response.choices[0].message.content.strip()
+            return {"model": "OpenAI", "response": answer}
+
+        except Exception as e:
+            error_type = type(e).__name__
+            error_msg = str(e)
+
+            # If this is the last attempt, return the error
+            if attempt == max_attempts - 1:
+                return {"model": "OpenAI", "response": f"[OpenAI {error_type}: {error_msg}]"}
+
+            # Otherwise, wait with exponential backoff and retry
+            delay = base_delay * (2 ** attempt)
+            time.sleep(delay)
+            continue
 
 
 def call_claude(prompt: str, enable_rag: bool = True, show_metadata: bool = False) -> Dict[str, Any]:
