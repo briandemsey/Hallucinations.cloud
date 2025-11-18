@@ -26,10 +26,11 @@ openai_client = None
 anthropic_client = None
 
 if OPENAI_API_KEY:
+    # Use default synchronous client - async is handled by FastAPI/ThreadPoolExecutor
     openai_client = OpenAI(
         api_key=OPENAI_API_KEY,
-        timeout=30.0,  # 30 second timeout
-        max_retries=2  # Retry failed requests
+        timeout=60.0,  # 60 second timeout
+        max_retries=3  # Retry failed requests
     )
 
 if ANTHROPIC_API_KEY:
