@@ -244,7 +244,7 @@ def call_grok(prompt: str, enable_rag: bool = True, show_metadata: bool = False)
             api_key=GROK_API_KEY,
             base_url="https://api.x.ai/v1"
         )
-        preferred_model = os.getenv("GROK_MODEL_NAME", "grok-beta")
+        preferred_model = os.getenv("GROK_MODEL_NAME", "grok-3")
         messages = [{"role": "user", "content": prompt}]
 
         response = grok_client.chat.completions.create(
