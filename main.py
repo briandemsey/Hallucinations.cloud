@@ -169,10 +169,17 @@ async def query_endpoint(
         # Run contradiction analysis if enabled
         contradiction_analysis = None
         if request.enable_contradiction:
-            contradiction_analysis = perform_contradiction_analysis(
-                query=request.query,
-                responses=model_responses
-            )
+            # Run in thread pool to avoid blocking
+            import asyncio
+            from concurrent.futures import ThreadPoolExecutor
+            loop = asyncio.get_event_loop()
+            with ThreadPoolExecutor(max_workers=1) as executor:
+                contradiction_analysis = await loop.run_in_executor(
+                    executor,
+                    perform_contradiction_analysis,
+                    request.query,
+                    model_responses
+                )
 
         # Calculate H-Score
         h_score = calculate_h_score(
