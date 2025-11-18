@@ -13,7 +13,11 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 # Initialize OpenAI client
 openai_client = None
 if OPENAI_API_KEY:
-    openai_client = OpenAI(api_key=OPENAI_API_KEY)
+    openai_client = OpenAI(
+        api_key=OPENAI_API_KEY,
+        timeout=30.0,  # 30 second timeout
+        max_retries=2  # Retry failed requests
+    )
 
 
 # ============= RED/BLUE/PURPLE TEAM ANALYSIS =============

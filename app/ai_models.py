@@ -26,7 +26,11 @@ openai_client = None
 anthropic_client = None
 
 if OPENAI_API_KEY:
-    openai_client = OpenAI(api_key=OPENAI_API_KEY)
+    openai_client = OpenAI(
+        api_key=OPENAI_API_KEY,
+        timeout=30.0,  # 30 second timeout
+        max_retries=2  # Retry failed requests
+    )
 
 if ANTHROPIC_API_KEY:
     anthropic_client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
