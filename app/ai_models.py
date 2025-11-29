@@ -127,8 +127,8 @@ def call_gemini(prompt: str, enable_rag: bool = True, show_metadata: bool = Fals
     max_attempts = 4
     base_delay = 2  # seconds
 
-    # Use REST API directly to avoid library version issues
-    api_url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={GOOGLE_API_KEY}"
+    # Use REST API directly - try v1beta endpoint with gemini-pro
+    api_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key={GOOGLE_API_KEY}"
 
     headers = {"Content-Type": "application/json"}
     payload = {
