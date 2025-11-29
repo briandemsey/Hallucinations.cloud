@@ -129,7 +129,7 @@ def call_gemini(prompt: str, enable_rag: bool = True, show_metadata: bool = Fals
 
     for attempt in range(max_attempts):
         try:
-            model = genai.GenerativeModel("gemini-1.0-pro")
+            model = genai.GenerativeModel("gemini-1.5-flash-latest")
             response = model.generate_content(prompt)
             answer = response.text.strip()
 
