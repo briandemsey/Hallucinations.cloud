@@ -119,18 +119,34 @@ def call_claude(prompt: str, enable_rag: bool = True, show_metadata: bool = Fals
 
 
 def call_gemini(prompt: str, enable_rag: bool = True, show_metadata: bool = False) -> Dict[str, Any]:
-    """Google Gemini 2.5 Flash"""
+    """Google Gemini 1.5 Flash with retry logic"""
     if not GOOGLE_API_KEY:
         return {"model": "Gemini", "response": "[Gemini unavailable: missing API key]"}
 
-    try:
-        model = genai.GenerativeModel("models/gemini-2.0-flash-exp")
-        response = model.generate_content(prompt)
-        answer = response.text.strip()
+    import time
+    max_attempts = 4
+    base_delay = 2  # seconds
 
-        return {"model": "Gemini", "response": answer}
-    except Exception as e:
-        return {"model": "Gemini", "response": f"[Gemini error: {str(e)}]"}
+    for attempt in range(max_attempts):
+        try:
+            model = genai.GenerativeModel("gemini-1.5-flash")
+            response = model.generate_content(prompt)
+            answer = response.text.strip()
+
+            return {"model": "Gemini", "response": answer}
+
+        except Exception as e:
+            error_type = type(e).__name__
+            error_msg = str(e)
+
+            # If this is the last attempt, return the error
+            if attempt == max_attempts - 1:
+                return {"model": "Gemini", "response": f"[Gemini {error_type}: {error_msg}]"}
+
+            # Otherwise, wait with exponential backoff and retry
+            delay = base_delay * (2 ** attempt)
+            time.sleep(delay)
+            continue
 
 
 def call_cohere(prompt: str, enable_rag: bool = True, show_metadata: bool = False) -> Dict[str, Any]:
