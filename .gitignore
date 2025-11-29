@@ -87,6 +87,7 @@ uploads/
 *.jpg
 *.jpeg
 *.png
+!logo.png
 *.gif
 *.webp
 

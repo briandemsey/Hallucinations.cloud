@@ -948,7 +948,7 @@ if google_key:
 ANTHROPIC_MODERATION_AVAILABLE = bool(anthropic_client)
 
 # Page config
-st.set_page_config(page_title="Hallucinations.cloud", layout="wide")
+st.set_page_config(page_title="Hallucinations.cloud", page_icon="logo.png", layout="wide")
 
 # === SESSION STATE INITIALIZATION ===
 def init_session_state():
@@ -3822,13 +3822,18 @@ with st.sidebar:
    
    st.divider()
    
-   st.markdown("### 🧠 Models in Use")
+   st.image("logo.png", width=40)
+   st.markdown("### Models in Use")
    models_list = ["GPT-4o", "Claude 3 Haiku", "Gemini 1.5 Pro", "Grok", "Cohere", "Deepseek", "OpenRouter", "Perplexity"]
    for model in models_list:
        st.markdown(f"- {model}")
 
 # === MAIN TITLE & HEADER ===
-st.title("🧠 Hallucinations.cloud Multi-Model")
+title_col1, title_col2 = st.columns([1, 10])
+with title_col1:
+   st.image("logo.png", width=60)
+with title_col2:
+   st.title("Hallucinations.cloud Multi-Model")
 
 # === API KEY STATUS CHECKER ===
 with st.expander("🔌 API Key Status", expanded=False):
