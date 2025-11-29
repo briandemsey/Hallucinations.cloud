@@ -1,5 +1,6 @@
 streamlit==1.29.0
 pandas==2.1.4
+stripe==10.5.0
 fastapi==0.115.5
 uvicorn[standard]==0.34.0
 python-dotenv==1.0.1
