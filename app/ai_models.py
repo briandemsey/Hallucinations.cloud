@@ -34,7 +34,11 @@ if OPENAI_API_KEY:
     )
 
 if ANTHROPIC_API_KEY:
-    anthropic_client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+    anthropic_client = anthropic.Anthropic(
+        api_key=ANTHROPIC_API_KEY,
+        timeout=60.0,  # 60 second timeout
+        max_retries=2  # Built-in retries
+    )
 
 if GOOGLE_API_KEY:
     genai.configure(api_key=GOOGLE_API_KEY)
@@ -81,22 +85,37 @@ def call_openai(prompt: str, enable_rag: bool = True, show_metadata: bool = Fals
 
 
 def call_claude(prompt: str, enable_rag: bool = True, show_metadata: bool = False) -> Dict[str, Any]:
-    """Claude Sonnet 4.5"""
+    """Claude 3 Haiku with retry logic"""
     if not anthropic_client:
         return {"model": "Claude", "response": "[Claude unavailable: missing API key]"}
 
-    try:
-        message = anthropic_client.messages.create(
-            model="claude-3-haiku-20240307",
-            max_tokens=600,
-            messages=[{"role": "user", "content": prompt}]
-        )
+    import time
+    max_attempts = 4
+    base_delay = 2  # seconds
 
-        answer = message.content[0].text.strip()
+    for attempt in range(max_attempts):
+        try:
+            message = anthropic_client.messages.create(
+                model="claude-3-haiku-20240307",
+                max_tokens=600,
+                messages=[{"role": "user", "content": prompt}]
+            )
 
-        return {"model": "Claude", "response": answer}
-    except Exception as e:
-        return {"model": "Claude", "response": f"[Claude error: {str(e)}]"}
+            answer = message.content[0].text.strip()
+            return {"model": "Claude", "response": answer}
+
+        except Exception as e:
+            error_type = type(e).__name__
+            error_msg = str(e)
+
+            # If this is the last attempt, return the error
+            if attempt == max_attempts - 1:
+                return {"model": "Claude", "response": f"[Claude {error_type}: {error_msg}]"}
+
+            # Otherwise, wait with exponential backoff and retry
+            delay = base_delay * (2 ** attempt)
+            time.sleep(delay)
+            continue
 
 
 def call_gemini(prompt: str, enable_rag: bool = True, show_metadata: bool = False) -> Dict[str, Any]:
