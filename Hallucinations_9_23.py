@@ -2652,6 +2652,38 @@ def show_super_user_controls():
                st.success("Session data cleared!")
                st.rerun()
 
+       # Download conversation button for SuperUsers
+       st.markdown("---")
+       st.markdown("#### 💾 Download Responses")
+       if st.session_state.get('conversation_document') and len(st.session_state.conversation_document) > 0:
+           conversation_text = "HALLUCINATIONS.CLOUD - 8 LLM RESPONSES\n"
+           conversation_text += f"Session Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+           conversation_text += "=" * 80 + "\n\n"
+
+           for entry in st.session_state.conversation_document:
+               conversation_text += f"QUERY #{entry['number']}\n"
+               conversation_text += f"Time: {entry['timestamp']}\n"
+               conversation_text += f"Question: {entry['question']}\n"
+               conversation_text += f"H-Score: {entry['hscore']}/10\n\n"
+
+               conversation_text += "MODEL RESPONSES:\n"
+               for model, response in entry['responses']:
+                   conversation_text += f"\n[{model}]:\n{response}\n"
+
+               if entry.get('analysis_summary'):
+                   conversation_text += f"\nANALYSIS:\n{entry['analysis_summary']}\n"
+               conversation_text += "\n" + "=" * 80 + "\n\n"
+
+           st.download_button(
+               label=f"⬇️ Download All ({len(st.session_state.conversation_document)} queries)",
+               data=conversation_text,
+               file_name=f"hallucinations_responses_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
+               mime="text/plain",
+               use_container_width=True
+           )
+       else:
+           st.caption("No queries yet. Submit a query to enable download.")
+
 def show_admin_dashboard():
    """Show comprehensive admin dashboard"""
    if not is_super_user():
