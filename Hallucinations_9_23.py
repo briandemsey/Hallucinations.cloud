@@ -2491,7 +2491,8 @@ SUPER_USER_PHONES = [
    "+19707998830",  # Alan Lapedes
    "+12066878168",  # YanLei Xu
    "+19495420322",  # Scott Sanchez
-   "+16193155778"   # John McKay
+   "+16193155778",  # John McKay
+   "+16504008061"   # DJ Waldow
    # Add other admin phone numbers here
 ]
 
