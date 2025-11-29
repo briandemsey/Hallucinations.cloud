@@ -119,7 +119,7 @@ def call_claude(prompt: str, enable_rag: bool = True, show_metadata: bool = Fals
 
 
 def call_gemini(prompt: str, enable_rag: bool = True, show_metadata: bool = False) -> Dict[str, Any]:
-    """Google Gemini Pro with retry logic"""
+    """Google Gemini via REST API with retry logic"""
     if not GOOGLE_API_KEY:
         return {"model": "Gemini", "response": "[Gemini unavailable: missing API key]"}
 
@@ -127,26 +127,44 @@ def call_gemini(prompt: str, enable_rag: bool = True, show_metadata: bool = Fals
     max_attempts = 4
     base_delay = 2  # seconds
 
+    # Use REST API directly to avoid library version issues
+    api_url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={GOOGLE_API_KEY}"
+
+    headers = {"Content-Type": "application/json"}
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {
+            "temperature": 0.5,
+            "maxOutputTokens": 600
+        }
+    }
+
     for attempt in range(max_attempts):
         try:
-            model = genai.GenerativeModel("gemini-1.5-flash-latest")
-            response = model.generate_content(prompt)
-            answer = response.text.strip()
+            response = requests.post(api_url, headers=headers, json=payload, timeout=60)
 
-            return {"model": "Gemini", "response": answer}
+            if response.status_code == 200:
+                data = response.json()
+                if "candidates" in data and len(data["candidates"]) > 0:
+                    answer = data["candidates"][0]["content"]["parts"][0]["text"].strip()
+                    return {"model": "Gemini", "response": answer}
+                else:
+                    return {"model": "Gemini", "response": "[Gemini error: No response generated]"}
+            else:
+                error_msg = response.text
+                if attempt == max_attempts - 1:
+                    return {"model": "Gemini", "response": f"[Gemini HTTP {response.status_code}: {error_msg[:100]}]"}
 
         except Exception as e:
             error_type = type(e).__name__
             error_msg = str(e)
 
-            # If this is the last attempt, return the error
             if attempt == max_attempts - 1:
                 return {"model": "Gemini", "response": f"[Gemini {error_type}: {error_msg}]"}
 
-            # Otherwise, wait with exponential backoff and retry
-            delay = base_delay * (2 ** attempt)
-            time.sleep(delay)
-            continue
+        # Wait with exponential backoff and retry
+        delay = base_delay * (2 ** attempt)
+        time.sleep(delay)
 
 
 def call_cohere(prompt: str, enable_rag: bool = True, show_metadata: bool = False) -> Dict[str, Any]:
