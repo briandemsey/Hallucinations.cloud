@@ -119,7 +119,7 @@ def call_claude(prompt: str, enable_rag: bool = True, show_metadata: bool = Fals
 
 
 def call_gemini(prompt: str, enable_rag: bool = True, show_metadata: bool = False) -> Dict[str, Any]:
-    """Google Gemini 1.5 Flash with retry logic"""
+    """Google Gemini Pro with retry logic"""
     if not GOOGLE_API_KEY:
         return {"model": "Gemini", "response": "[Gemini unavailable: missing API key]"}
 
@@ -129,7 +129,7 @@ def call_gemini(prompt: str, enable_rag: bool = True, show_metadata: bool = Fals
 
     for attempt in range(max_attempts):
         try:
-            model = genai.GenerativeModel("gemini-1.5-flash")
+            model = genai.GenerativeModel("gemini-pro")
             response = model.generate_content(prompt)
             answer = response.text.strip()
 
