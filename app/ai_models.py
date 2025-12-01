@@ -26,19 +26,10 @@ openai_client = None
 anthropic_client = None
 
 if OPENAI_API_KEY:
-    # Use default synchronous client - async is handled by FastAPI/ThreadPoolExecutor
-    openai_client = OpenAI(
-        api_key=OPENAI_API_KEY,
-        timeout=60.0,  # 60 second timeout
-        max_retries=3  # Retry failed requests
-    )
+    openai_client = OpenAI(api_key=OPENAI_API_KEY)
 
 if ANTHROPIC_API_KEY:
-    anthropic_client = anthropic.Anthropic(
-        api_key=ANTHROPIC_API_KEY,
-        timeout=60.0,  # 60 second timeout
-        max_retries=2  # Built-in retries
-    )
+    anthropic_client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 
 if GOOGLE_API_KEY:
     genai.configure(api_key=GOOGLE_API_KEY)
@@ -47,124 +38,60 @@ if GOOGLE_API_KEY:
 # ============= AI MODEL FUNCTIONS =============
 
 def call_openai(prompt: str, enable_rag: bool = True, show_metadata: bool = False) -> Dict[str, Any]:
-    """OpenAI GPT-4o with manual retry and exponential backoff"""
+    """OpenAI GPT-4o"""
     if not openai_client:
         return {"model": "OpenAI", "response": "[OpenAI unavailable: missing API key]"}
 
-    import time
-    max_attempts = 4
-    base_delay = 2  # seconds
+    try:
+        response = openai_client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant with access to current information."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.5,
+            max_tokens=600
+        )
 
-    for attempt in range(max_attempts):
-        try:
-            response = openai_client.chat.completions.create(
-                model="gpt-4o",
-                messages=[
-                    {"role": "system", "content": "You are a helpful assistant with access to current information."},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.5,
-                max_tokens=600
-            )
+        answer = response.choices[0].message.content.strip()
 
-            answer = response.choices[0].message.content.strip()
-            return {"model": "OpenAI", "response": answer}
-
-        except Exception as e:
-            error_type = type(e).__name__
-            error_msg = str(e)
-
-            # If this is the last attempt, return the error
-            if attempt == max_attempts - 1:
-                return {"model": "OpenAI", "response": f"[OpenAI {error_type}: {error_msg}]"}
-
-            # Otherwise, wait with exponential backoff and retry
-            delay = base_delay * (2 ** attempt)
-            time.sleep(delay)
-            continue
+        return {"model": "OpenAI", "response": answer}
+    except Exception as e:
+        return {"model": "OpenAI", "response": f"[OpenAI error: {str(e)}]"}
 
 
 def call_claude(prompt: str, enable_rag: bool = True, show_metadata: bool = False) -> Dict[str, Any]:
-    """Claude 3 Haiku with retry logic"""
+    """Claude Sonnet 4.5"""
     if not anthropic_client:
         return {"model": "Claude", "response": "[Claude unavailable: missing API key]"}
 
-    import time
-    max_attempts = 4
-    base_delay = 2  # seconds
+    try:
+        message = anthropic_client.messages.create(
+            model="claude-3-haiku-20240307",
+            max_tokens=600,
+            messages=[{"role": "user", "content": prompt}]
+        )
 
-    for attempt in range(max_attempts):
-        try:
-            message = anthropic_client.messages.create(
-                model="claude-3-haiku-20240307",
-                max_tokens=600,
-                messages=[{"role": "user", "content": prompt}]
-            )
+        answer = message.content[0].text.strip()
 
-            answer = message.content[0].text.strip()
-            return {"model": "Claude", "response": answer}
-
-        except Exception as e:
-            error_type = type(e).__name__
-            error_msg = str(e)
-
-            # If this is the last attempt, return the error
-            if attempt == max_attempts - 1:
-                return {"model": "Claude", "response": f"[Claude {error_type}: {error_msg}]"}
-
-            # Otherwise, wait with exponential backoff and retry
-            delay = base_delay * (2 ** attempt)
-            time.sleep(delay)
-            continue
+        return {"model": "Claude", "response": answer}
+    except Exception as e:
+        return {"model": "Claude", "response": f"[Claude error: {str(e)}]"}
 
 
 def call_gemini(prompt: str, enable_rag: bool = True, show_metadata: bool = False) -> Dict[str, Any]:
-    """Google Gemini via REST API with retry logic"""
+    """Google Gemini 2.5 Flash"""
     if not GOOGLE_API_KEY:
         return {"model": "Gemini", "response": "[Gemini unavailable: missing API key]"}
 
-    import time
-    max_attempts = 4
-    base_delay = 2  # seconds
+    try:
+        model = genai.GenerativeModel("models/gemini-2.0-flash-exp")
+        response = model.generate_content(prompt)
+        answer = response.text.strip()
 
-    # Use REST API directly - try v1beta endpoint with gemini-pro
-    api_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key={GOOGLE_API_KEY}"
-
-    headers = {"Content-Type": "application/json"}
-    payload = {
-        "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {
-            "temperature": 0.5,
-            "maxOutputTokens": 600
-        }
-    }
-
-    for attempt in range(max_attempts):
-        try:
-            response = requests.post(api_url, headers=headers, json=payload, timeout=60)
-
-            if response.status_code == 200:
-                data = response.json()
-                if "candidates" in data and len(data["candidates"]) > 0:
-                    answer = data["candidates"][0]["content"]["parts"][0]["text"].strip()
-                    return {"model": "Gemini", "response": answer}
-                else:
-                    return {"model": "Gemini", "response": "[Gemini error: No response generated]"}
-            else:
-                error_msg = response.text
-                if attempt == max_attempts - 1:
-                    return {"model": "Gemini", "response": f"[Gemini HTTP {response.status_code}: {error_msg[:100]}]"}
-
-        except Exception as e:
-            error_type = type(e).__name__
-            error_msg = str(e)
-
-            if attempt == max_attempts - 1:
-                return {"model": "Gemini", "response": f"[Gemini {error_type}: {error_msg}]"}
-
-        # Wait with exponential backoff and retry
-        delay = base_delay * (2 ** attempt)
-        time.sleep(delay)
+        return {"model": "Gemini", "response": answer}
+    except Exception as e:
+        return {"model": "Gemini", "response": f"[Gemini error: {str(e)}]"}
 
 
 def call_cohere(prompt: str, enable_rag: bool = True, show_metadata: bool = False) -> Dict[str, Any]:
@@ -242,7 +169,7 @@ def call_openrouter(prompt: str, enable_rag: bool = True, show_metadata: bool = 
         return {"model": "OpenRouter", "response": f"[OpenRouter error: {str(e)}]"}
 
 
-def call_perplexity(prompt: str, enable_rag: bool = True, show_metadata: bool = False) -> Dict[str, Any]:
+def call_perplexity(prompt: str) -> Dict[str, Any]:
     """Perplexity"""
     if not PERPLEXITY_API_KEY:
         return {"model": "Perplexity", "response": "[Perplexity unavailable: missing API key]"}
@@ -297,7 +224,7 @@ def call_grok(prompt: str, enable_rag: bool = True, show_metadata: bool = False)
             api_key=GROK_API_KEY,
             base_url="https://api.x.ai/v1"
         )
-        preferred_model = os.getenv("GROK_MODEL_NAME", "grok-3")
+        preferred_model = os.getenv("GROK_MODEL_NAME", "grok-beta")
         messages = [{"role": "user", "content": prompt}]
 
         response = grok_client.chat.completions.create(
@@ -348,8 +275,10 @@ async def query_all_models(
     with ThreadPoolExecutor(max_workers=8) as executor:
         future_to_model = {
             executor.submit(func, query, enable_rag, show_metadata): func
-            for func in model_functions  # All models have same signature now
+            for func in model_functions[:-1]  # All except Perplexity
         }
+        # Perplexity has different signature
+        future_to_model[executor.submit(call_perplexity, query)] = call_perplexity
 
         for future in as_completed(future_to_model):
             try:

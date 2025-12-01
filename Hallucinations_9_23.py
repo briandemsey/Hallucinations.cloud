@@ -45,18 +45,14 @@ import json
 import pandas as pd
 import time
 import requests
-import logging
 from datetime import datetime, timedelta
+from types import SimpleNamespace
 from openai import OpenAI
 import anthropic
 import google.generativeai as genai
 import cohere
 import stripe
 from twilio.rest import Client
-
-# Set up logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 # === TRUTH VERIFICATION ENGINE (Integrated) ===
 import requests
@@ -889,44 +885,43 @@ perplexity_key = os.getenv("PERPLEXITY_API_KEY")
 cohere_key = os.getenv("COHERE_API_KEY")
 deepseek_key = os.getenv("DEEPSEEK_API_KEY")
 
-# === SECURE STRIPE CONFIGURATION - PRODUCTION READY WITH FALLBACK ===
+# === SECURE STRIPE CONFIGURATION - PRODUCTION READY ===
 stripe_environment = os.getenv("STRIPE_ENVIRONMENT", "live")
 
-# Initialize Stripe with fallback handling
-stripe_key = None
 if stripe_environment == "test":
-    stripe_key = os.getenv("STRIPE_TEST_SECRET_KEY")
+    # Test mode - get key from environment
+    stripe.api_key = os.getenv("STRIPE_TEST_SECRET_KEY")
+    if not stripe.api_key:
+        st.error("🚨 STRIPE_TEST_SECRET_KEY environment variable not set!")
+        st.info("Add your test key to continue in test mode")
+        st.stop()
 else:
-    stripe_key = os.getenv("STRIPE_LIVE_SECRET_KEY")
+    # Live production mode 
+    stripe.api_key = os.getenv("STRIPE_LIVE_SECRET_KEY")
+    if not stripe.api_key:
+        st.error("🚨 STRIPE_LIVE_SECRET_KEY environment variable not set!")
+        st.info("Add your live key to accept real payments")
+        st.stop()
 
-if stripe_key:
-    stripe.api_key = stripe_key
-    # Environment-specific price IDs
-    if stripe_environment == "live":
-        PRICE_IDS = {
-            'consumer': os.getenv("STRIPE_PRICE_CONSUMER_LIVE"),
-            'professional': os.getenv("STRIPE_PRICE_PROFESSIONAL_LIVE"),
-            'enterprise': os.getenv("STRIPE_PRICE_ENTERPRISE_LIVE")
-        }
-    else:
-        PRICE_IDS = {
-            'consumer': os.getenv("STRIPE_PRICE_CONSUMER_TEST"),
-            'professional': os.getenv("STRIPE_PRICE_PROFESSIONAL_TEST"),
-            'enterprise': os.getenv("STRIPE_PRICE_ENTERPRISE_TEST")
-        }
-
-    # Check if all price IDs are set (but don't stop the app)
-    missing_prices = [plan for plan, price_id in PRICE_IDS.items() if not price_id]
-    if missing_prices:
-        st.sidebar.warning(f"⚠️ Missing Stripe price IDs for: {', '.join(missing_prices)}")
-else:
-    # Stripe not configured - demo mode
+# Environment-specific price IDs
+if stripe_environment == "live":
     PRICE_IDS = {
-        'consumer': 'demo_consumer',
-        'professional': 'demo_professional',
-        'enterprise': 'demo_enterprise'
+        'consumer': os.getenv("STRIPE_PRICE_CONSUMER_LIVE"),
+        'professional': os.getenv("STRIPE_PRICE_PROFESSIONAL_LIVE"), 
+        'enterprise': os.getenv("STRIPE_PRICE_ENTERPRISE_LIVE")
     }
-    st.sidebar.info("💡 Running in demo mode - Stripe not configured")
+else:
+    PRICE_IDS = {
+        'consumer': os.getenv("STRIPE_PRICE_CONSUMER_TEST"),
+        'professional': os.getenv("STRIPE_PRICE_PROFESSIONAL_TEST"),
+        'enterprise': os.getenv("STRIPE_PRICE_ENTERPRISE_TEST")
+    }
+
+# Validate that all price IDs are set
+for plan, price_id in PRICE_IDS.items():
+    if not price_id:
+        st.error(f"🚨 Missing {plan} price ID for {stripe_environment} mode!")
+        st.stop()
 
 # Twilio configuration
 TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID")
@@ -948,7 +943,7 @@ if google_key:
 ANTHROPIC_MODERATION_AVAILABLE = bool(anthropic_client)
 
 # Page config
-st.set_page_config(page_title="Hallucinations.cloud", page_icon="logo.png", layout="wide")
+st.set_page_config(page_title="Hallucinations.cloud", layout="wide")
 
 # === SESSION STATE INITIALIZATION ===
 def init_session_state():
@@ -2098,6 +2093,24 @@ def show_html_landing_page():
 
 
 # === AUTHENTICATION FUNCTIONS ===
+# Dedicated bypass credentials for internal testing (login only)
+TEST_LOGIN_PHONE = "+11234567890"
+TEST_LOGIN_CODE = "123456"
+TEST_LOGIN_EMAIL = os.getenv("TEST_LOGIN_EMAIL", "test+login@hallucinations.cloud")
+
+def get_test_login_customer():
+   """Create a lightweight customer object for the OTP bypass flow."""
+   return SimpleNamespace(
+       phone=TEST_LOGIN_PHONE,
+       email=TEST_LOGIN_EMAIL,
+       id="cus_test_login",
+       metadata={
+           'trial_end': (datetime.now() + timedelta(days=30)).isoformat(),
+           'queries_used': '0',
+           'queries_today': '0'
+       }
+   )
+
 def validate_phone(phone):
    """Normalize and validate E.164 phone numbers; auto-add +1 for 10-digit US."""
    cleaned = re.sub(r'[^\d+]', '', phone or '')
@@ -2120,25 +2133,19 @@ def validate_phone(phone):
 
 def send_verification_code(phone):
    """Send SMS verification code"""
-   # Apple App Store Review - Hardcoded test credentials
-   if phone == "+13014426175":
-       st.session_state.apple_review_code = "612485"
-       st.info("📱 Apple Review Mode: Use code 612485")
-       return True
-
    if not twilio_client:
        # Development mode - use mock code
        st.session_state.mock_code = "123456"
        st.info("Development mode: Use code 123456")
        return True
-
+   
    try:
        verification = twilio_client.verify \
            .v2 \
            .services(TWILIO_VERIFY_SERVICE_SID) \
            .verifications \
            .create(to=phone, channel='sms')
-
+       
        return verification.status == 'pending'
    except Exception as e:
        st.error(f"Failed to send SMS: {str(e)}")
@@ -2146,57 +2153,40 @@ def send_verification_code(phone):
 
 def verify_phone_code(phone, code):
    """Verify the SMS code"""
-   # Apple App Store Review - Hardcoded test credentials
-   if phone == "+13014426175":
-       if code == "612485":
-           st.success("✅ Apple Review Mode: Authentication successful!")
-           return True
-       else:
-           st.error("❌ Apple Review Mode: Use code 612485")
-           return False
-
    if not twilio_client:
        # Development mode
        return code == st.session_state.get('mock_code', '123456')
-
+   
    try:
        verification_check = twilio_client.verify \
            .v2 \
            .services(TWILIO_VERIFY_SERVICE_SID) \
            .verification_checks \
            .create(to=phone, code=code)
-
+       
        return verification_check.status == 'approved'
-   except Exception as e:
-       st.error(f"Verification failed: {str(e)}")
-       logger.error(f"SMS verification error: {str(e)}")
+   except:
+       st.error("Invalid code. Please try again.")
        return False
 
 def create_account_with_plan(phone, email, plan):
    """Create account with selected plan"""
    try:
-       # Apple App Store Review - Skip Stripe for review account
-       if phone == "+13014426175":
-           # Create mock customer for Apple review
-           mock_customer = type('MockCustomer', (), {'id': 'cus_apple_review_account'})()
-           customer = mock_customer
-           st.info("🍎 Apple Review Account: Bypassing payment setup")
-       else:
-           # Create Stripe customer
-           customer = stripe.Customer.create(
-               email=email,
-               phone=phone,
-               metadata={
-                   'phone': phone,
-                   'phone_verified': 'true',
-                   'selected_plan': plan,
-                   'trial_start': datetime.now().isoformat(),
-                   'trial_end': (datetime.now() + timedelta(days=3)).isoformat(),
-                   'queries_used': '0',
-                   'queries_today': '0',
-                   'last_query_date': datetime.now().date().isoformat()
-               }
-           )
+       # Create Stripe customer
+       customer = stripe.Customer.create(
+           email=email,
+           phone=phone,
+           metadata={
+               'phone': phone,
+               'phone_verified': 'true',
+               'selected_plan': plan,
+               'trial_start': datetime.now().isoformat(),
+               'trial_end': (datetime.now() + timedelta(days=3)).isoformat(),
+               'queries_used': '0',
+               'queries_today': '0',
+               'last_query_date': datetime.now().date().isoformat()
+           }
+       )
        
        # Set session
        st.session_state.user_phone = phone
@@ -2389,7 +2379,7 @@ def handle_successful_login(customer):
    st.session_state.authenticated = True
    
    # Clear login state
-   for key in ['pending_login_phone', 'pending_customer', 'show_login', 'existing_phone']:
+   for key in ['pending_login_phone', 'pending_customer', 'show_login', 'existing_phone', 'test_login_bypass']:
        if key in st.session_state:
            del st.session_state[key]
    
@@ -2447,29 +2437,44 @@ def show_login_form():
    col1, col2 = st.columns(2)
    with col1:
        if st.button("Send Login Code", type="primary", use_container_width=True):
-           if validate_phone(phone):
-               try:
-                   # Find customer by phone
-                   customers = stripe.Customer.search(
-                       query=f'metadata["phone"]:"{phone}"',
-                       limit=1
-                   )
-                   
-                   if customers.data:
-                       if send_verification_code(phone):
-                           st.session_state.pending_login_phone = phone
+           normalized_phone = validate_phone(phone)
+           if normalized_phone:
+               if normalized_phone == TEST_LOGIN_PHONE:
+                   st.session_state.pending_login_phone = normalized_phone
+                   st.session_state.pending_customer = get_test_login_customer()
+                   st.session_state.test_login_bypass = True
+                   st.success(f"Test login bypass active. Use code {TEST_LOGIN_CODE}.")
+               else:
+                   try:
+                       # Find customer by phone
+                       customers = stripe.Customer.search(
+                           query=f'metadata["phone"]:"{normalized_phone}"',
+                           limit=1
+                       )
+                       
+                       if customers.data:
+                           st.session_state.pending_login_phone = normalized_phone
                            st.session_state.pending_customer = customers.data[0]
-                           st.success("Login code sent!")
-                   else:
-                       st.error("No account found with this phone number")
-               except Exception as e:
-                   st.error("Login failed. Please try again.")
+                           st.session_state.pop('test_login_bypass', None)
+                           
+                           if send_verification_code(normalized_phone):
+                               st.success("Login code sent!")
+                           else:
+                               # Sending failed, clear pending state
+                               for key in ['pending_login_phone', 'pending_customer']:
+                                   if key in st.session_state:
+                                       del st.session_state[key]
+                       else:
+                           st.error("No account found with this phone number")
+                   except Exception as e:
+                       st.error("Login failed. Please try again.")
    
    with col2:
        if st.button("Create new account", use_container_width=True):
            st.session_state.show_login = False
            if 'existing_phone' in st.session_state:
                del st.session_state.existing_phone
+           st.session_state.pop('test_login_bypass', None)
            st.rerun()
    
    # Verify login code
@@ -2478,7 +2483,16 @@ def show_login_form():
        code = st.text_input("Enter login code:", max_chars=6)
        
        if st.button("Login", type="primary"):
-           if verify_phone_code(st.session_state.pending_login_phone, code):
+           is_test_bypass = st.session_state.get('test_login_bypass', False)
+           
+           if is_test_bypass:
+               if code == TEST_LOGIN_CODE:
+                   customer = st.session_state.pending_customer
+                   handle_successful_login(customer)
+                   st.rerun()
+               else:
+                   st.error("Invalid test login code.")
+           elif verify_phone_code(st.session_state.pending_login_phone, code):
                # Login successful - handle routing based on account status
                customer = st.session_state.pending_customer
                handle_successful_login(customer)
@@ -2491,8 +2505,7 @@ SUPER_USER_PHONES = [
    "+19707998830",  # Alan Lapedes
    "+12066878168",  # YanLei Xu
    "+19495420322",  # Scott Sanchez
-   "+16193155778",  # John McKay
-   "+16504008061"   # DJ Waldow
+   "+16193155778"   # John McKay
    # Add other admin phone numbers here
 ]
 
@@ -2651,38 +2664,6 @@ def show_super_user_controls():
                        del st.session_state[key]
                st.success("Session data cleared!")
                st.rerun()
-
-       # Download conversation button for SuperUsers
-       st.markdown("---")
-       st.markdown("#### 💾 Download Responses")
-       if st.session_state.get('conversation_document') and len(st.session_state.conversation_document) > 0:
-           conversation_text = "HALLUCINATIONS.CLOUD - 8 LLM RESPONSES\n"
-           conversation_text += f"Session Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
-           conversation_text += "=" * 80 + "\n\n"
-
-           for entry in st.session_state.conversation_document:
-               conversation_text += f"QUERY #{entry['number']}\n"
-               conversation_text += f"Time: {entry['timestamp']}\n"
-               conversation_text += f"Question: {entry['question']}\n"
-               conversation_text += f"H-Score: {entry['hscore']}/10\n\n"
-
-               conversation_text += "MODEL RESPONSES:\n"
-               for model, response in entry['responses']:
-                   conversation_text += f"\n[{model}]:\n{response}\n"
-
-               if entry.get('analysis_summary'):
-                   conversation_text += f"\nANALYSIS:\n{entry['analysis_summary']}\n"
-               conversation_text += "\n" + "=" * 80 + "\n\n"
-
-           st.download_button(
-               label=f"⬇️ Download All ({len(st.session_state.conversation_document)} queries)",
-               data=conversation_text,
-               file_name=f"hallucinations_responses_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
-               mime="text/plain",
-               use_container_width=True
-           )
-       else:
-           st.caption("No queries yet. Submit a query to enable download.")
 
 def show_admin_dashboard():
    """Show comprehensive admin dashboard"""
@@ -3254,27 +3235,11 @@ def call_claude_sync(prompt):
 def call_gemini_sync(prompt):
    if not google_key:
        return ("Gemini", "[Gemini unavailable: missing API key]")
-
+   
    try:
-       # Try multiple model names in order of preference
-       model_names = [
-           "gemini-1.5-pro",      # Current standard model
-           "gemini-pro",          # Fallback to older version
-           "gemini-1.5-flash"     # Fast alternative
-       ]
-
-       for model_name in model_names:
-           try:
-               model = genai.GenerativeModel(model_name)
-               response = model.generate_content(prompt)
-               return ("Gemini", response.text.strip())
-           except Exception as model_error:
-               logger.info(f"Gemini model {model_name} failed: {str(model_error)}")
-               continue
-
-       # If all models fail, return the last error
-       return ("Gemini", f"[Gemini error: All model versions failed. Last error: {str(model_error)}]")
-
+       model = genai.GenerativeModel("gemini-1.5-pro-latest")
+       response = model.generate_content(prompt)
+       return ("Gemini", response.text.strip())
    except Exception as e:
        return ("Gemini", f"[Gemini error: {str(e)}]")
 
@@ -3410,19 +3375,17 @@ def show_followup_interface(previous_query, previous_results):
     """Show follow-up question interface after analysis"""
     st.markdown("---")
     st.subheader("💬 Continue the Conversation")
-
+    
     col1, col2 = st.columns([3, 1])
-
+    
     with col1:
         followup_question = st.text_input(
             "Ask a follow-up question:",
             placeholder="Build on the previous responses...",
-            help="Your follow-up will be added to the ongoing conversation (Press Enter to submit)",
-            key="followup_input",
-            on_change=process_followup_question,
-            args=(previous_query, previous_results)
+            help="Your follow-up will be added to the ongoing conversation",
+            key="followup_input"
         )
-
+    
     with col2:
         if st.button("🔄 Ask Follow-up", type="secondary", use_container_width=True):
             if followup_question:
@@ -3430,24 +3393,10 @@ def show_followup_interface(previous_query, previous_results):
                 st.session_state.current_query = context_query
                 st.session_state.run_analysis = True
                 st.session_state.is_followup = True
-                # Clear the followup input
-                st.session_state.followup_input = ""
                 st.rerun()
-
+    
     st.caption(f"Previous query: {previous_query[:100]}...")
     return followup_question
-
-def process_followup_question(previous_query, previous_results):
-    """Process follow-up question when Enter is pressed"""
-    followup_question = st.session_state.get("followup_input", "").strip()
-
-    if followup_question:  # Only process if there's actual content
-        context_query = create_followup_context(previous_query, previous_results, followup_question)
-        st.session_state.current_query = context_query
-        st.session_state.run_analysis = True
-        st.session_state.is_followup = True
-        # Clear the followup input for next question
-        st.session_state.followup_input = ""
 
 def create_followup_context(previous_query, previous_results, followup_question):
     """Create context-aware follow-up query"""
@@ -3822,18 +3771,13 @@ with st.sidebar:
    
    st.divider()
    
-   st.image("logo.png", width=40)
-   st.markdown("### Models in Use")
+   st.markdown("### 🧠 Models in Use")
    models_list = ["GPT-4o", "Claude 3 Haiku", "Gemini 1.5 Pro", "Grok", "Cohere", "Deepseek", "OpenRouter", "Perplexity"]
    for model in models_list:
        st.markdown(f"- {model}")
 
 # === MAIN TITLE & HEADER ===
-title_col1, title_col2 = st.columns([1, 10])
-with title_col1:
-   st.image("logo.png", width=60)
-with title_col2:
-   st.title("Hallucinations.cloud Multi-Model")
+st.title("🧠 Hallucinations.cloud Multi-Model")
 
 # === API KEY STATUS CHECKER ===
 with st.expander("🔌 API Key Status", expanded=False):
