@@ -1,4 +1,4 @@
-streamlit==1.29.0
+streamlit==1.30.0
 pandas==2.2.3
 stripe==10.5.0
 fastapi==0.115.5
