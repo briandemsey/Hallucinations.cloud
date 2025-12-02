@@ -53,6 +53,47 @@ import google.generativeai as genai
 import cohere
 import stripe
 from twilio.rest import Client
+import io
+
+# === FILE EXTRACTION HELPER ===
+def extract_text_from_file(uploaded_file):
+    """Extract text content from uploaded file (PDF, TXT, CSV, DOCX)"""
+    try:
+        file_type = uploaded_file.name.lower().split('.')[-1]
+
+        if file_type == 'txt':
+            return uploaded_file.read().decode('utf-8')
+
+        elif file_type == 'csv':
+            import pandas as pd
+            df = pd.read_csv(uploaded_file)
+            return df.to_string()
+
+        elif file_type == 'pdf':
+            try:
+                import PyPDF2
+                pdf_reader = PyPDF2.PdfReader(uploaded_file)
+                text = ""
+                for page in pdf_reader.pages:
+                    text += page.extract_text() + "\n"
+                return text.strip()
+            except ImportError:
+                return "[PDF extraction requires PyPDF2 - file content not extracted]"
+
+        elif file_type == 'docx':
+            try:
+                from docx import Document
+                doc = Document(uploaded_file)
+                text = "\n".join([para.text for para in doc.paragraphs])
+                return text.strip()
+            except ImportError:
+                return "[DOCX extraction requires python-docx - file content not extracted]"
+
+        else:
+            return f"[Unsupported file type: {file_type}]"
+
+    except Exception as e:
+        return f"[Error extracting file content: {str(e)}]"
 
 # === TRUTH VERIFICATION ENGINE (Integrated) ===
 import requests
@@ -878,6 +919,7 @@ openai_key = os.getenv("OPENAI_API_KEY")
 anthropic_key = os.getenv("ANTHROPIC_API_KEY")
 google_key = os.getenv("GOOGLE_API_KEY")
 google_search_engine_id = os.getenv("GOOGLE_SEARCH_ENGINE_ID")
+tavily_key = os.getenv("TAVILY_API_KEY")
 newsapi_key = os.getenv("NEWSAPI_KEY")
 openrouter_key = os.getenv("OPENROUTER_API_KEY")
 grok_key = os.getenv("GROK_API_KEY")
@@ -1000,32 +1042,6 @@ def show_enhanced_landing_page():
         if st.button("🎨 View Full Landing Page", use_container_width=True):
             st.session_state.show_html_landing = True
             st.rerun()
-    
-
-    # --- Mobile-to-desktop handoff (added by assistant) ---
-    try:
-        import urllib.parse as _u
-    except Exception:
-        import urllib as _u  # fallback for older environments
-
-    APP_URL = "https://hllm.hallucinations.cloud/"
-    UTM_URL = APP_URL + "?utm_source=google_play&utm_medium=listing&utm_campaign=install"
-    mailto_link = "mailto:?subject=" + _u.quote("H-LLM Desktop Link") + "&body=" + _u.quote(APP_URL)
-
-    st.divider()
-    st.markdown("### Continue on desktop")
-    cA, cB, cC = st.columns([1,1,1])
-    with cA:
-        st.link_button("📨 Email me a desktop link", mailto_link, use_container_width=True)
-    with cB:
-        st.link_button("🔗 Open desktop version (UTM)", UTM_URL, use_container_width=True)
-    with cC:
-        st.image(
-            "https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=" + _u.quote(APP_URL),
-            caption="Scan to open on your desktop",
-            width=160
-        )
-    # --- End mobile-to-desktop block ---
     # Minimal CSS for essential styling only
     st.markdown("""
     <style>
@@ -1116,14 +1132,19 @@ def show_enhanced_landing_page():
     </style>
     """, unsafe_allow_html=True)
     
-    # Hero Section
+    # Hero Section with Logo - tight spacing
+    st.markdown("<div style='margin-bottom: -30px;'></div>", unsafe_allow_html=True)
+    col1, col2, col3 = st.columns([0.3, 3, 2.7])
+    with col2:
+        st.image("logo.png", width=300)
+    st.markdown("<div style='margin-top: -30px;'></div>", unsafe_allow_html=True)
     st.markdown("""
     <div class="hero-container">
         <h1 class="hero-title">H-LLM Multi-Model™</h1>
         <p class="hero-subtitle">The premier multi-model AI analysis platform that compares 8 leading LLMs simultaneously, detects hallucinations, and provides comprehensive security analysis through Red/Blue/Purple team methodologies.</p>
     </div>
     """, unsafe_allow_html=True)
-    
+
     # Key Stats using pure Streamlit
     st.markdown("### 📊 Platform Overview")
     
@@ -3207,6 +3228,68 @@ def handle_payment_success():
        st.warning("⚠️ Payment was cancelled. Your trial continues as normal.")
        del st.query_params['cancelled']
 
+# === WEB SEARCH AUGMENTATION ===
+def get_web_search_context(query):
+   """Fetch current web search results to augment LLM queries - Tavily first, Google fallback"""
+
+   # Try Tavily first (optimized for LLMs)
+   if tavily_key:
+       try:
+           response = requests.post(
+               "https://api.tavily.com/search",
+               json={
+                   "api_key": tavily_key,
+                   "query": query,
+                   "search_depth": "basic",
+                   "max_results": 5,
+                   "include_answer": True
+               },
+               timeout=15
+           )
+           if response.status_code == 200:
+               data = response.json()
+               search_context = "CURRENT WEB SEARCH RESULTS (use this for up-to-date information):\n\n"
+
+               # Include Tavily's direct answer if available
+               if data.get('answer'):
+                   search_context += f"DIRECT ANSWER: {data['answer']}\n\n"
+
+               # Include search results
+               for i, result in enumerate(data.get('results', [])[:5], 1):
+                   title = result.get('title', '')
+                   content = result.get('content', '')
+                   search_context += f"{i}. {title}\n   {content}\n\n"
+
+               return search_context
+       except Exception as e:
+           print(f"Tavily search error: {e}")
+
+   # Fall back to Google Custom Search
+   if google_key and google_search_engine_id:
+       try:
+           search_url = "https://www.googleapis.com/customsearch/v1"
+           params = {
+               'key': google_key,
+               'cx': google_search_engine_id,
+               'q': query,
+               'num': 5
+           }
+           response = requests.get(search_url, params=params, timeout=10)
+           if response.status_code == 200:
+               data = response.json()
+               items = data.get('items', [])
+               if items:
+                   search_context = "CURRENT WEB SEARCH RESULTS (use this for up-to-date information):\n\n"
+                   for i, item in enumerate(items[:5], 1):
+                       title = item.get('title', '')
+                       snippet = item.get('snippet', '')
+                       search_context += f"{i}. {title}\n   {snippet}\n\n"
+                   return search_context
+       except Exception as e:
+           print(f"Google search error: {e}")
+
+   return None
+
 # === AI MODEL FUNCTIONS (CLEANED - NO FOLLOW-UP) ===
 def call_openai_sync(prompt):
    if not openai_client:
@@ -3897,6 +3980,7 @@ st.caption("🛡️ All queries are checked for content policy compliance using 
 if st.session_state.conversation_count > 0:
    st.info(f"💬 Conversation Mode Active - Query #{st.session_state.conversation_count + 1}")
 
+# Query input
 user_query = st.text_input(
    "Ask anything - continue the conversation or start a new topic:",
    placeholder="Enter your question here...",
@@ -3904,14 +3988,36 @@ user_query = st.text_input(
    key="main_query_input"  # STATIC KEY
 )
 
+# File attachment below query input
+st.caption("📎 Attach file (optional) · PDF, TXT, CSV, DOCX · 5MB max")
+uploaded_file = st.file_uploader(
+    "Attach file",
+    type=['pdf', 'txt', 'csv', 'docx'],
+    label_visibility="collapsed",
+    key="file_attachment"
+)
+
+# Validate file size and show status
+if uploaded_file and uploaded_file.size > 5_000_000:
+    st.error("⚠️ File exceeds 5MB limit.")
+    uploaded_file = None
+elif uploaded_file:
+    st.success(f"📎 {uploaded_file.name} ({uploaded_file.size // 1024}KB)")
+
 # Analysis options in main interface
 col1, col2 = st.columns([3, 1])
 with col1:
    if st.button("🚀 Submit Query", type="primary", key="submit_query_button") and user_query:
        # Check content moderation
        if process_query_with_moderation(user_query):
+           # Build full query with file content if attached
+           full_query = user_query
+           if uploaded_file:
+               file_content = extract_text_from_file(uploaded_file)
+               if file_content and not file_content.startswith("["):
+                   full_query = f"{user_query}\n\n--- Attached File: {uploaded_file.name} ---\n{file_content}"
            st.session_state.run_analysis = True
-           st.session_state.current_query = user_query
+           st.session_state.current_query = full_query
                    
 
 with col2:
@@ -3942,12 +4048,23 @@ if st.session_state.get('run_analysis') and st.session_state.get('current_query'
    if not available_models:
        st.error("No API keys available! Please set up at least one API key.")
    else:
+       # Get web search context for current information
+       with st.spinner("🔍 Searching web for current information..."):
+           web_context = get_web_search_context(query)
+
+       # Augment query with web search results
+       if web_context:
+           augmented_query = f"{web_context}\n\nUSER QUESTION: {query}\n\nPlease answer using the current web search results above when relevant."
+           st.success("✅ Web search results added to query")
+       else:
+           augmented_query = query
+
        # Query all models
        with st.spinner("Querying models..."):
            results = []
            for model_func in available_models:
                try:
-                   result = model_func(query)
+                   result = model_func(augmented_query)
                    results.append(result)
                except Exception as e:
                    results.append((model_func.__name__, f"[Error: {str(e)}]"))
