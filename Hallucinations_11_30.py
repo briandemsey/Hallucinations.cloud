@@ -2154,12 +2154,19 @@ def validate_phone(phone):
 
 def send_verification_code(phone):
    """Send SMS verification code"""
+   # Demo account for Apple App Store review
+   DEMO_PHONE = "+15550100001"
+   if phone == DEMO_PHONE or phone == "5550100001" or phone == "+1 5550100001":
+       st.session_state.demo_mode = True
+       st.success("✅ Demo verification code sent!")
+       return True
+
    if not twilio_client:
        # Development mode - use mock code
        st.session_state.mock_code = "123456"
        st.info("Development mode: Use code 123456")
        return True
-   
+
    try:
        verification = twilio_client.verify \
            .v2 \
@@ -2174,10 +2181,16 @@ def send_verification_code(phone):
 
 def verify_phone_code(phone, code):
    """Verify the SMS code"""
+   # Demo account for Apple App Store review
+   DEMO_PHONE = "+15550100001"
+   DEMO_CODE = "123456"
+   if (phone == DEMO_PHONE or phone == "5550100001" or phone == "+1 5550100001") and code == DEMO_CODE:
+       return True
+
    if not twilio_client:
        # Development mode
        return code == st.session_state.get('mock_code', '123456')
-   
+
    try:
        verification_check = twilio_client.verify \
            .v2 \
