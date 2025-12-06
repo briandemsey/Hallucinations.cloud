@@ -977,7 +977,12 @@ twilio_client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN) if TWILIO_ACCOUNT_
 
 # Setup AI clients
 openai_client = OpenAI(api_key=openai_key) if openai_key else None
-anthropic_client = anthropic.Anthropic(api_key=anthropic_key) if anthropic_key else None
+# Configure Anthropic client with extended timeout for cloud deployments (Render cold starts)
+anthropic_client = anthropic.Anthropic(
+    api_key=anthropic_key,
+    timeout=60.0,  # 60 second timeout
+    max_retries=3
+) if anthropic_key else None
 cohere_client = cohere.Client(cohere_key) if cohere_key else None
 if google_key:
     genai.configure(api_key=google_key)
