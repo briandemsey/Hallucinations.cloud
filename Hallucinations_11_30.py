@@ -562,8 +562,9 @@ If content is safe, set flagged to false and categories to empty array."""
         
         # Call Anthropic API
         message = anthropic_client.messages.create(
-            model="claude-3-haiku-20240307",  # Fast and cost-effective
+            model="claude-3-5-haiku-20241022",  # Fast and cost-effective
             max_tokens=200,
+            timeout=15.0,  # Quick timeout for moderation
             messages=[{"role": "user", "content": moderation_prompt}]
         )
         
@@ -684,7 +685,7 @@ def log_moderation_event(user_phone, query, moderation_result):
             "severity": moderation_result.get("severity", "low"),
             "explanation": moderation_result.get("anthropic_details", {}).get("explanation", ""),
             "moderation_system": "anthropic_claude",
-            "model": "claude-3-haiku-20240307"
+            "model": "claude-3-5-haiku-20241022"
         }
         
         # Store in session state
@@ -887,7 +888,7 @@ def show_anthropic_moderation_status():
     with col1:
         if anthropic_client:
             st.success("✅ Anthropic Claude API: Active")
-            st.caption("Model: claude-3-haiku-20240307")
+            st.caption("Model: claude-3-5-haiku-20241022")
         else:
             st.error("❌ Anthropic API: Not configured")
     
@@ -3326,27 +3327,38 @@ def call_claude_sync(prompt):
    if not anthropic_client:
        return ("Claude", "[Claude unavailable: missing API key]")
 
+   # Try newer model first, then fall back to older if needed
+   models_to_try = ["claude-3-5-haiku-20241022", "claude-3-haiku-20240307"]
    max_retries = 3
-   for attempt in range(max_retries):
-       try:
-           message = anthropic_client.messages.create(
-               model="claude-3-haiku-20240307",
-               max_tokens=600,
-               messages=[{"role": "user", "content": prompt}]
-           )
-           return ("Claude", message.content[0].text.strip())
-       except anthropic.APIConnectionError as e:
-           if attempt < max_retries - 1:
-               time.sleep(2 ** attempt)  # Exponential backoff: 1s, 2s, 4s
-               continue
-           return ("Claude", f"[Claude connection error after {max_retries} retries: {str(e)}]")
-       except anthropic.RateLimitError as e:
-           if attempt < max_retries - 1:
-               time.sleep(2 ** attempt)
-               continue
-           return ("Claude", f"[Claude rate limited: {str(e)}]")
-       except Exception as e:
-           return ("Claude", f"[Claude error: {str(e)}]")
+
+   for model_name in models_to_try:
+       for attempt in range(max_retries):
+           try:
+               message = anthropic_client.messages.create(
+                   model=model_name,
+                   max_tokens=600,
+                   timeout=30.0,  # 30 second timeout to prevent connection hangs
+                   messages=[{"role": "user", "content": prompt}]
+               )
+               return ("Claude", message.content[0].text.strip())
+           except anthropic.APIConnectionError as e:
+               if attempt < max_retries - 1:
+                   time.sleep(2 ** attempt)  # Exponential backoff: 1s, 2s, 4s
+                   continue
+               # Try next model if available
+               if model_name != models_to_try[-1]:
+                   break
+               return ("Claude", f"[Claude connection error after {max_retries} retries: {str(e)}]")
+           except anthropic.RateLimitError as e:
+               if attempt < max_retries - 1:
+                   time.sleep(2 ** attempt)
+                   continue
+               return ("Claude", f"[Claude rate limited: {str(e)}]")
+           except anthropic.NotFoundError as e:
+               # Model not found, try next model
+               break
+           except Exception as e:
+               return ("Claude", f"[Claude error: {str(e)}]")
 
 def call_gemini_sync(prompt):
    if not google_key:
