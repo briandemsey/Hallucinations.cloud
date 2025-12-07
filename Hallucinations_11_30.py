@@ -3347,13 +3347,16 @@ def call_claude_sync(prompt):
                )
                return ("Claude", message.content[0].text.strip())
            except anthropic.APIConnectionError as e:
+               # Log the underlying cause for debugging
+               cause = e.__cause__
+               print(f"Claude APIConnectionError (attempt {attempt+1}/{max_retries}, model={model_name}): {e}, cause: {cause}")
                if attempt < max_retries - 1:
                    time.sleep(2 ** attempt)  # Exponential backoff: 1s, 2s, 4s
                    continue
                # Try next model if available
                if model_name != models_to_try[-1]:
                    break
-               return ("Claude", f"[Claude connection error after {max_retries} retries: {str(e)}]")
+               return ("Claude", f"[Claude connection error after {max_retries} retries. Cause: {cause}]")
            except anthropic.RateLimitError as e:
                if attempt < max_retries - 1:
                    time.sleep(2 ** attempt)
