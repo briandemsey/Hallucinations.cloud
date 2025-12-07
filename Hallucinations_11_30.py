@@ -915,9 +915,10 @@ def show_anthropic_moderation_status():
 # === BLOCK 1: Configuration & Setup ===
 load_dotenv()
 
-# Get API keys
+# Get API keys (strip whitespace to handle copy/paste issues with newlines)
 openai_key = os.getenv("OPENAI_API_KEY")
-anthropic_key = os.getenv("ANTHROPIC_API_KEY")
+_raw_anthropic_key = os.getenv("ANTHROPIC_API_KEY")
+anthropic_key = _raw_anthropic_key.strip() if _raw_anthropic_key else None
 google_key = os.getenv("GOOGLE_API_KEY")
 google_search_engine_id = os.getenv("GOOGLE_SEARCH_ENGINE_ID")
 tavily_key = os.getenv("TAVILY_API_KEY")
