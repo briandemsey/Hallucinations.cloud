@@ -6,7 +6,7 @@ services:
     region: oregon
     plan: starter
     buildCommand: pip install -r requirements.txt
-    startCommand: streamlit run Hallucinations_9_23.py --server.port=$PORT --server.address=0.0.0.0 --server.headless=true
+    startCommand: streamlit run Hallucinations_11_30.py --server.port=$PORT --server.address=0.0.0.0 --server.headless=true
     envVars:
       - key: PYTHON_VERSION
         value: 3.9.18
