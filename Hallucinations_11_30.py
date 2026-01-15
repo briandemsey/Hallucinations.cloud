@@ -1149,6 +1149,7 @@ def show_enhanced_landing_page():
     <div class="hero-container">
         <h1 class="hero-title">H-LLM Multi-Model™</h1>
         <p class="hero-subtitle">The premier multi-model AI analysis platform that compares 8 leading LLMs simultaneously, detects hallucinations, and provides comprehensive security analysis through Red/Blue/Purple team methodologies.</p>
+        <p style="font-weight:bold; text-transform:uppercase; color:#fff; margin-top:16px; font-size:14px;">Questions may be submitted in English, Spanish, Japanese, Mandarin, and 20+ other languages</p>
     </div>
     """, unsafe_allow_html=True)
 
