@@ -2553,7 +2553,8 @@ SUPER_USER_PHONES = [
    "+19495420322",  # Scott Sanchez
    "+16193155778",  # John McKay
    "+16504008061",  # DJ Waldow
-   "+19495007539"   # Erin Conley
+   "+19495007539",  # Erin Conley
+   "+972507510007"  # Uri Levine
 ]
 
 def is_super_user():
