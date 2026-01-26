@@ -2561,12 +2561,15 @@ SUPER_USER_PHONES = [
 def is_super_user():
    """Check if current user is a super user - respects normal user toggle"""
    user_phone = st.session_state.get('user_phone', '')
-   is_actual_super_user = user_phone in SUPER_USER_PHONES
-   
+   # Normalize phone number - remove spaces, dashes, parentheses
+   normalized_phone = ''.join(c for c in user_phone if c.isdigit() or c == '+')
+   normalized_super_phones = [''.join(c for c in p if c.isdigit() or c == '+') for p in SUPER_USER_PHONES]
+   is_actual_super_user = normalized_phone in normalized_super_phones
+
    # If "view as normal user" is enabled, behave as normal user
    if st.session_state.get('view_as_normal_user', False):
        return False
-       
+
    return is_actual_super_user
 
 def check_daily_limit():
