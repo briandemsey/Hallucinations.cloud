@@ -2417,18 +2417,25 @@ def show_enhanced_registration_form_with_plan():
 
 def handle_successful_login(customer):
    """Route user appropriately after login based on account status"""
-   
+
    # Set basic session data
    st.session_state.user_phone = customer.phone
    st.session_state.user_email = customer.email
    st.session_state.customer_id = customer.id
    st.session_state.authenticated = True
-   
+
    # Clear login state
    for key in ['pending_login_phone', 'pending_customer', 'show_login', 'existing_phone', 'test_login_bypass']:
        if key in st.session_state:
            del st.session_state[key]
-   
+
+   # SUPERUSER CHECK - bypass all subscription/trial checks
+   if is_super_user():
+       st.session_state.show_landing = False
+       st.session_state.show_upgrade = False
+       st.success("✅ Welcome back! You have superuser access.")
+       return
+
    try:
        # Check account status
        metadata = customer.metadata
