@@ -2477,50 +2477,71 @@ def handle_successful_login(customer):
        st.info("✅ Welcome back! Please verify your subscription status.")
        print(f"Login status check error: {str(e)}")
 
+def handle_send_login_code():
+   """Callback for Send Login Code button - executes on single click"""
+   phone = st.session_state.get('login_phone_input', '')
+   normalized_phone = validate_phone(phone)
+
+   if not normalized_phone:
+       st.session_state.login_error = "Please enter a valid phone number"
+       return
+
+   if normalized_phone == TEST_LOGIN_PHONE:
+       st.session_state.pending_login_phone = normalized_phone
+       st.session_state.pending_customer = get_test_login_customer()
+       st.session_state.test_login_bypass = True
+       st.session_state.login_success = f"Test login bypass active. Use code {TEST_LOGIN_CODE}."
+       st.session_state.login_error = None
+   else:
+       try:
+           # Find customer by phone
+           customers = stripe.Customer.search(
+               query=f'metadata["phone"]:"{normalized_phone}"',
+               limit=1
+           )
+
+           if customers.data:
+               st.session_state.pending_login_phone = normalized_phone
+               st.session_state.pending_customer = customers.data[0]
+               st.session_state.pop('test_login_bypass', None)
+
+               if send_verification_code(normalized_phone):
+                   st.session_state.login_success = "Login code sent!"
+                   st.session_state.login_error = None
+               else:
+                   # Sending failed, clear pending state
+                   for key in ['pending_login_phone', 'pending_customer']:
+                       if key in st.session_state:
+                           del st.session_state[key]
+                   st.session_state.login_error = "Failed to send code. Please try again."
+                   st.session_state.login_success = None
+           else:
+               st.session_state.login_error = "No account found with this phone number"
+               st.session_state.login_success = None
+       except Exception as e:
+           st.session_state.login_error = "Login failed. Please try again."
+           st.session_state.login_success = None
+
 def show_login_form():
    """Show login form for existing users"""
    st.markdown("### 🔐 Welcome Back!")
-   
+
    phone = st.text_input(
        "Enter your phone number:",
        value=st.session_state.get('existing_phone', ''),
-       placeholder="+1234567890"
+       placeholder="+1234567890",
+       key="login_phone_input"
    )
-   
+
    col1, col2 = st.columns(2)
    with col1:
-       if st.button("Send Login Code", type="primary", use_container_width=True):
-           normalized_phone = validate_phone(phone)
-           if normalized_phone:
-               if normalized_phone == TEST_LOGIN_PHONE:
-                   st.session_state.pending_login_phone = normalized_phone
-                   st.session_state.pending_customer = get_test_login_customer()
-                   st.session_state.test_login_bypass = True
-                   st.success(f"Test login bypass active. Use code {TEST_LOGIN_CODE}.")
-               else:
-                   try:
-                       # Find customer by phone
-                       customers = stripe.Customer.search(
-                           query=f'metadata["phone"]:"{normalized_phone}"',
-                           limit=1
-                       )
-                       
-                       if customers.data:
-                           st.session_state.pending_login_phone = normalized_phone
-                           st.session_state.pending_customer = customers.data[0]
-                           st.session_state.pop('test_login_bypass', None)
-                           
-                           if send_verification_code(normalized_phone):
-                               st.success("Login code sent!")
-                           else:
-                               # Sending failed, clear pending state
-                               for key in ['pending_login_phone', 'pending_customer']:
-                                   if key in st.session_state:
-                                       del st.session_state[key]
-                       else:
-                           st.error("No account found with this phone number")
-                   except Exception as e:
-                       st.error("Login failed. Please try again.")
+       st.button("Send Login Code", type="primary", use_container_width=True, on_click=handle_send_login_code)
+
+       # Display success/error messages after button click
+       if st.session_state.get('login_success'):
+           st.success(st.session_state.login_success)
+       if st.session_state.get('login_error'):
+           st.error(st.session_state.login_error)
    
    with col2:
        if st.button("Create new account", use_container_width=True):
