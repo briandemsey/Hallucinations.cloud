@@ -1097,7 +1097,7 @@ def show_enhanced_landing_page():
         if st.checkbox("Start Free Trial", key="ctc_start_trial"):
             st.session_state.ctc_step = max(st.session_state.ctc_step, 2)
 
-    # Step 2: Enter Phone Number
+    # Step 2: Enter Phone Number and Send Code
     col_left, col_right = st.columns([2, 3])
     with col_left:
         st.markdown("**2. Enter your phone number**")
@@ -1105,17 +1105,38 @@ def show_enhanced_landing_page():
         phone = st.text_input("Phone number", placeholder="+1 (555) 123-4567", key="ctc_phone_input", label_visibility="collapsed")
         if phone:
             st.session_state.ctc_phone = phone
-            st.session_state.ctc_step = max(st.session_state.ctc_step, 3)
+            # Show Send Code button
+            if not st.session_state.get('ctc_code_sent', False):
+                if st.button("📱 Send Code", key="ctc_send_code"):
+                    normalized_phone = validate_phone(phone)
+                    if normalized_phone:
+                        if send_verification_code(normalized_phone):
+                            st.session_state.ctc_code_sent = True
+                            st.session_state.ctc_normalized_phone = normalized_phone
+                            st.session_state.ctc_step = max(st.session_state.ctc_step, 3)
+                            st.rerun()
+                    else:
+                        st.error("Please enter a valid phone number")
+            else:
+                st.success("✓ Code sent!")
+                st.session_state.ctc_step = max(st.session_state.ctc_step, 3)
 
-    # Step 3: Enter SMS Code
+    # Step 3: Enter SMS Code and Verify
     col_left, col_right = st.columns([2, 3])
     with col_left:
         st.markdown("**3. Enter your SMS authorization code**")
     with col_right:
         sms_code = st.text_input("SMS Code", placeholder="123456", key="ctc_sms_input", label_visibility="collapsed")
-        if sms_code and len(sms_code) >= 4:
-            st.session_state.ctc_verified = True
-            st.session_state.ctc_step = max(st.session_state.ctc_step, 4)
+        if sms_code and len(sms_code) >= 4 and not st.session_state.get('ctc_verified', False):
+            if st.button("✓ Verify Code", key="ctc_verify_code"):
+                normalized_phone = st.session_state.get('ctc_normalized_phone', st.session_state.get('ctc_phone', ''))
+                if verify_phone_code(normalized_phone, sms_code):
+                    st.session_state.ctc_verified = True
+                    st.session_state.ctc_step = max(st.session_state.ctc_step, 4)
+                    st.rerun()
+                else:
+                    st.error("Invalid code. Please try again.")
+        elif st.session_state.get('ctc_verified', False):
             st.success("✓ Verified")
 
     # Step 4: Enter Query
@@ -2711,7 +2732,8 @@ SUPER_USER_PHONES = [
    "+16504008061",  # DJ Waldow
    "+19495007539",  # Erin Conley
    "+972507510007", # Uri Levine
-   "+61476165706"   # Julie Demsey
+   "+61476165706",  # Julie Demsey
+   "+19498877593"   # Sharon Conley
 ]
 
 def is_super_user():
