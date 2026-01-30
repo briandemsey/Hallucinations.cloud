@@ -1298,7 +1298,7 @@ def show_enhanced_landing_page():
         st.markdown("""
         <div style="padding-top: 20px;">
             <h1 style="color: #667eea; font-size: 2.8rem; font-weight: 800; margin-bottom: 0.5rem;">H-LLM Multi-Model™</h1>
-            <p style="color: #1a1a2e; font-size: 1.1rem; line-height: 1.6;">The premier multi-model AI analysis platform that compares 8 leading LLMs simultaneously, detects hallucinations, and provides comprehensive security analysis through Red/Blue/Purple team methodologies.</p>
+            <p style="color: #ffffff; font-size: 1.1rem; line-height: 1.6;">The premier multi-model AI analysis platform that compares 8 leading LLMs simultaneously, detects hallucinations, and provides comprehensive security analysis through Red/Blue/Purple team methodologies.</p>
             <p style="font-weight:bold; text-transform:uppercase; color:#667eea; margin-top:16px; font-size:13px;">Questions may be submitted in English, Spanish, Japanese, Mandarin, and 20+ other languages</p>
         </div>
         """, unsafe_allow_html=True)
