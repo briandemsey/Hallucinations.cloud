@@ -1139,13 +1139,14 @@ def show_enhanced_landing_page():
         elif st.session_state.get('ctc_verified', False):
             st.success("✓ Verified")
 
-    # Step 4: Enter Query
+    # Step 4: Enter Query (wrapped in form so Enter key submits)
     col_left, col_right = st.columns([2, 3])
     with col_left:
         st.markdown("**4. Enter your query**")
     with col_right:
-        user_query = st.text_area("Your question", placeholder="Ask anything...", height=80, key="ctc_query_input", label_visibility="collapsed")
-        submit_query = st.button("🚀 Submit", key="ctc_submit", type="primary")
+        with st.form(key="ctc_query_form", clear_on_submit=False):
+            user_query = st.text_area("Your question", placeholder="Ask anything...", height=80, label_visibility="collapsed")
+            submit_query = st.form_submit_button("🚀 Submit", type="primary")
 
     # Step 5: One Sentence Answer (shown after query)
     col_left, col_right = st.columns([2, 3])
@@ -1225,6 +1226,7 @@ def show_enhanced_landing_page():
         background: #f8f9fa;
         border-radius: 0.5rem;
         margin: 0.5rem;
+        color: #1a1a2e;
     }
     .stat-number {
         font-size: 2rem;
@@ -1288,19 +1290,18 @@ def show_enhanced_landing_page():
     </style>
     """, unsafe_allow_html=True)
     
-    # Hero Section with Logo - tight spacing
-    st.markdown("<div style='margin-bottom: -30px;'></div>", unsafe_allow_html=True)
-    col1, col2, col3 = st.columns([0.3, 3, 2.7])
-    with col2:
-        st.image("logo.png", width=300)
-    st.markdown("<div style='margin-top: -30px;'></div>", unsafe_allow_html=True)
-    st.markdown("""
-    <div class="hero-container">
-        <h1 class="hero-title">H-LLM Multi-Model™</h1>
-        <p class="hero-subtitle">The premier multi-model AI analysis platform that compares 8 leading LLMs simultaneously, detects hallucinations, and provides comprehensive security analysis through Red/Blue/Purple team methodologies.</p>
-        <p style="font-weight:bold; text-transform:uppercase; color:#fff; margin-top:16px; font-size:14px;">Questions may be submitted in English, Spanish, Japanese, Mandarin, and 20+ other languages</p>
-    </div>
-    """, unsafe_allow_html=True)
+    # Hero Section with Logo and Title side by side
+    col_logo, col_text = st.columns([1, 2])
+    with col_logo:
+        st.image("logo.png", width=280)
+    with col_text:
+        st.markdown("""
+        <div style="padding-top: 20px;">
+            <h1 style="color: #667eea; font-size: 2.8rem; font-weight: 800; margin-bottom: 0.5rem;">H-LLM Multi-Model™</h1>
+            <p style="color: #1a1a2e; font-size: 1.1rem; line-height: 1.6;">The premier multi-model AI analysis platform that compares 8 leading LLMs simultaneously, detects hallucinations, and provides comprehensive security analysis through Red/Blue/Purple team methodologies.</p>
+            <p style="font-weight:bold; text-transform:uppercase; color:#667eea; margin-top:16px; font-size:13px;">Questions may be submitted in English, Spanish, Japanese, Mandarin, and 20+ other languages</p>
+        </div>
+        """, unsafe_allow_html=True)
 
     # Key Stats using pure Streamlit
     st.markdown("### 📊 Platform Overview")
@@ -1311,31 +1312,31 @@ def show_enhanced_landing_page():
         st.markdown("""
         <div class="stat-box">
             <div class="stat-number">8</div>
-            <div>AI Models</div>
+            <div>🤖 AI Models</div>
         </div>
         """, unsafe_allow_html=True)
-    
+
     with col2:
         st.markdown("""
         <div class="stat-box">
             <div class="stat-number">3</div>
-            <div>Security Teams</div>
+            <div>🛡️ Security Teams</div>
         </div>
         """, unsafe_allow_html=True)
-    
+
     with col3:
         st.markdown("""
         <div class="stat-box">
             <div class="stat-number">5</div>
-            <div>Free Daily Queries</div>
+            <div>💬 Free Daily Queries</div>
         </div>
         """, unsafe_allow_html=True)
-    
+
     with col4:
         st.markdown("""
         <div class="stat-box">
             <div class="stat-number">3</div>
-            <div>Day Free Trial</div>
+            <div>🎁 Day Free Trial</div>
         </div>
         """, unsafe_allow_html=True)
     
@@ -3716,26 +3717,29 @@ def show_followup_interface(previous_query, previous_results):
     """Show follow-up question interface after analysis"""
     st.markdown("---")
     st.subheader("💬 Continue the Conversation")
-    
-    col1, col2 = st.columns([3, 1])
-    
-    with col1:
-        followup_question = st.text_input(
-            "Ask a follow-up question:",
-            placeholder="Build on the previous responses...",
-            help="Your follow-up will be added to the ongoing conversation",
-            key="followup_input"
-        )
-    
-    with col2:
-        if st.button("🔄 Ask Follow-up", type="secondary", use_container_width=True):
-            if followup_question:
-                context_query = create_followup_context(previous_query, previous_results, followup_question)
-                st.session_state.current_query = context_query
-                st.session_state.run_analysis = True
-                st.session_state.is_followup = True
-                st.rerun()
-    
+
+    # Wrap in form so Enter key submits
+    with st.form(key="followup_form", clear_on_submit=False):
+        col1, col2 = st.columns([3, 1])
+
+        with col1:
+            followup_question = st.text_input(
+                "Ask a follow-up question:",
+                placeholder="Build on the previous responses...",
+                help="Your follow-up will be added to the ongoing conversation"
+            )
+
+        with col2:
+            submit_followup = st.form_submit_button("🔄 Ask Follow-up", use_container_width=True)
+
+    # Process after form submission
+    if submit_followup and followup_question:
+        context_query = create_followup_context(previous_query, previous_results, followup_question)
+        st.session_state.current_query = context_query
+        st.session_state.run_analysis = True
+        st.session_state.is_followup = True
+        st.rerun()
+
     st.caption(f"Previous query: {previous_query[:100]}...")
     return followup_question
 
@@ -4344,15 +4348,7 @@ st.caption("🛡️ All queries are checked for content policy compliance using 
 if st.session_state.conversation_count > 0:
    st.info(f"💬 Conversation Mode Active - Query #{st.session_state.conversation_count + 1}")
 
-# Query input
-user_query = st.text_input(
-   "Ask anything - continue the conversation or start a new topic:",
-   placeholder="Enter your question here...",
-   help="Your query will be added to the conversation document along with all model responses",
-   key="main_query_input"  # STATIC KEY
-)
-
-# File attachment below query input
+# File attachment BEFORE form (file_uploader doesn't work well inside forms)
 st.caption("📎 Attach file (optional) · PDF, TXT, CSV, DOCX · 5MB max")
 uploaded_file = st.file_uploader(
     "Attach file",
@@ -4368,29 +4364,37 @@ if uploaded_file and uploaded_file.size > 5_000_000:
 elif uploaded_file:
     st.success(f"📎 {uploaded_file.name} ({uploaded_file.size // 1024}KB)")
 
-# Analysis options in main interface
-col1, col2 = st.columns([3, 1])
-with col1:
-   if st.button("🚀 Submit Query", type="primary", key="submit_query_button") and user_query:
-       # Check content moderation
-       if process_query_with_moderation(user_query):
-           # Build full query with file content if attached
-           full_query = user_query
-           if uploaded_file:
-               file_content = extract_text_from_file(uploaded_file)
-               if file_content and not file_content.startswith("["):
-                   full_query = f"{user_query}\n\n--- Attached File: {uploaded_file.name} ---\n{file_content}"
-           st.session_state.run_analysis = True
-           st.session_state.current_query = full_query
-                   
+# Query input wrapped in form so Enter key submits
+with st.form(key="main_query_form", clear_on_submit=False):
+    user_query = st.text_input(
+       "Ask anything - continue the conversation or start a new topic:",
+       placeholder="Enter your question here...",
+       help="Your query will be added to the conversation document along with all model responses"
+    )
 
-with col2:
-   analysis_depth = st.selectbox(
-       "Analysis Depth:",
-       ["Quick", "Standard", "Comprehensive"],
-       index=1,
-       help="Quick: Basic comparison, Standard: +Red/Blue, Comprehensive: Full Red/Blue/Purple"
-   )
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        submit_button = st.form_submit_button("🚀 Submit Query", type="primary")
+    with col2:
+        analysis_depth = st.selectbox(
+            "Analysis Depth:",
+            ["Quick", "Standard", "Comprehensive"],
+            index=1,
+            help="Quick: Basic comparison, Standard: +Red/Blue, Comprehensive: Full Red/Blue/Purple"
+        )
+
+# Process query after form submission
+if submit_button and user_query:
+    # Check content moderation
+    if process_query_with_moderation(user_query):
+        # Build full query with file content if attached
+        full_query = user_query
+        if uploaded_file:
+            file_content = extract_text_from_file(uploaded_file)
+            if file_content and not file_content.startswith("["):
+                full_query = f"{user_query}\n\n--- Attached File: {uploaded_file.name} ---\n{file_content}"
+        st.session_state.run_analysis = True
+        st.session_state.current_query = full_query
 
 # Main analysis execution
 if st.session_state.get('run_analysis') and st.session_state.get('current_query'):
