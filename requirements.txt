@@ -13,3 +13,6 @@ cohere==5.13.4
 requests==2.32.3
 twilio==9.4.0
 PyJWT==2.10.1
+PyPDF2==3.0.1
+python-docx==1.1.2
+tavily-python==0.5.0

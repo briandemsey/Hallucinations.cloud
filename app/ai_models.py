@@ -9,7 +9,7 @@ import google.generativeai as genai
 import cohere
 import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 # API Keys from environment
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
@@ -46,7 +46,7 @@ if GOOGLE_API_KEY:
 
 # ============= AI MODEL FUNCTIONS =============
 
-def call_openai(prompt: str, enable_rag: bool = True, show_metadata: bool = False) -> Dict[str, Any]:
+def call_openai(prompt: str, enable_rag: bool = True, show_metadata: bool = False, web_context: Optional[str] = None) -> Dict[str, Any]:
     """OpenAI GPT-4o with manual retry and exponential backoff"""
     if not openai_client:
         return {"model": "OpenAI", "response": "[OpenAI unavailable: missing API key]"}
@@ -55,13 +55,18 @@ def call_openai(prompt: str, enable_rag: bool = True, show_metadata: bool = Fals
     max_attempts = 4
     base_delay = 2  # seconds
 
+    # Prepend web context if available
+    full_prompt = prompt
+    if web_context:
+        full_prompt = f"{web_context}\n\nUSER QUERY: {prompt}"
+
     for attempt in range(max_attempts):
         try:
             response = openai_client.chat.completions.create(
                 model="gpt-4o",
                 messages=[
                     {"role": "system", "content": "You are a helpful assistant with access to current information."},
-                    {"role": "user", "content": prompt}
+                    {"role": "user", "content": full_prompt}
                 ],
                 temperature=0.5,
                 max_tokens=600
@@ -84,7 +89,7 @@ def call_openai(prompt: str, enable_rag: bool = True, show_metadata: bool = Fals
             continue
 
 
-def call_claude(prompt: str, enable_rag: bool = True, show_metadata: bool = False) -> Dict[str, Any]:
+def call_claude(prompt: str, enable_rag: bool = True, show_metadata: bool = False, web_context: Optional[str] = None) -> Dict[str, Any]:
     """Claude 3 Haiku with retry logic"""
     if not anthropic_client:
         return {"model": "Claude", "response": "[Claude unavailable: missing API key]"}
@@ -93,12 +98,17 @@ def call_claude(prompt: str, enable_rag: bool = True, show_metadata: bool = Fals
     max_attempts = 4
     base_delay = 2  # seconds
 
+    # Prepend web context if available
+    full_prompt = prompt
+    if web_context:
+        full_prompt = f"{web_context}\n\nUSER QUERY: {prompt}"
+
     for attempt in range(max_attempts):
         try:
             message = anthropic_client.messages.create(
                 model="claude-3-haiku-20240307",
                 max_tokens=600,
-                messages=[{"role": "user", "content": prompt}]
+                messages=[{"role": "user", "content": full_prompt}]
             )
 
             answer = message.content[0].text.strip()
@@ -118,7 +128,7 @@ def call_claude(prompt: str, enable_rag: bool = True, show_metadata: bool = Fals
             continue
 
 
-def call_gemini(prompt: str, enable_rag: bool = True, show_metadata: bool = False) -> Dict[str, Any]:
+def call_gemini(prompt: str, enable_rag: bool = True, show_metadata: bool = False, web_context: Optional[str] = None) -> Dict[str, Any]:
     """Google Gemini via REST API with retry logic"""
     if not GOOGLE_API_KEY:
         return {"model": "Gemini", "response": "[Gemini unavailable: missing API key]"}
@@ -127,12 +137,17 @@ def call_gemini(prompt: str, enable_rag: bool = True, show_metadata: bool = Fals
     max_attempts = 4
     base_delay = 2  # seconds
 
+    # Prepend web context if available
+    full_prompt = prompt
+    if web_context:
+        full_prompt = f"{web_context}\n\nUSER QUERY: {prompt}"
+
     # Use REST API directly - try v1beta endpoint with gemini-pro
     api_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key={GOOGLE_API_KEY}"
 
     headers = {"Content-Type": "application/json"}
     payload = {
-        "contents": [{"parts": [{"text": prompt}]}],
+        "contents": [{"parts": [{"text": full_prompt}]}],
         "generationConfig": {
             "temperature": 0.5,
             "maxOutputTokens": 600
@@ -167,15 +182,20 @@ def call_gemini(prompt: str, enable_rag: bool = True, show_metadata: bool = Fals
         time.sleep(delay)
 
 
-def call_cohere(prompt: str, enable_rag: bool = True, show_metadata: bool = False) -> Dict[str, Any]:
+def call_cohere(prompt: str, enable_rag: bool = True, show_metadata: bool = False, web_context: Optional[str] = None) -> Dict[str, Any]:
     """Cohere Command R"""
     if not COHERE_API_KEY:
         return {"model": "Cohere", "response": "[Cohere unavailable: missing API key]"}
 
+    # Prepend web context if available
+    full_prompt = prompt
+    if web_context:
+        full_prompt = f"{web_context}\n\nUSER QUERY: {prompt}"
+
     try:
         co = cohere.Client(COHERE_API_KEY)
         response = co.chat(
-            message=prompt,
+            message=full_prompt,
             model='command-r-08-2024',
             max_tokens=600,
             temperature=0.5
@@ -188,10 +208,15 @@ def call_cohere(prompt: str, enable_rag: bool = True, show_metadata: bool = Fals
         return {"model": "Cohere", "response": f"[Cohere error: {str(e)}]"}
 
 
-def call_deepseek(prompt: str, enable_rag: bool = True, show_metadata: bool = False) -> Dict[str, Any]:
+def call_deepseek(prompt: str, enable_rag: bool = True, show_metadata: bool = False, web_context: Optional[str] = None) -> Dict[str, Any]:
     """DeepSeek"""
     if not DEEPSEEK_API_KEY:
         return {"model": "DeepSeek", "response": "[DeepSeek unavailable: missing API key]"}
+
+    # Prepend web context if available
+    full_prompt = prompt
+    if web_context:
+        full_prompt = f"{web_context}\n\nUSER QUERY: {prompt}"
 
     try:
         deepseek_client = OpenAI(
@@ -202,7 +227,7 @@ def call_deepseek(prompt: str, enable_rag: bool = True, show_metadata: bool = Fa
             model="deepseek-chat",
             messages=[
                 {"role": "system", "content": "You are a helpful assistant."},
-                {"role": "user", "content": prompt}
+                {"role": "user", "content": full_prompt}
             ],
             temperature=0.5,
             max_tokens=600
@@ -215,10 +240,15 @@ def call_deepseek(prompt: str, enable_rag: bool = True, show_metadata: bool = Fa
         return {"model": "DeepSeek", "response": f"[DeepSeek error: {str(e)}]"}
 
 
-def call_openrouter(prompt: str, enable_rag: bool = True, show_metadata: bool = False) -> Dict[str, Any]:
+def call_openrouter(prompt: str, enable_rag: bool = True, show_metadata: bool = False, web_context: Optional[str] = None) -> Dict[str, Any]:
     """OpenRouter"""
     if not OPENROUTER_API_KEY:
         return {"model": "OpenRouter", "response": "[OpenRouter unavailable: missing API key]"}
+
+    # Prepend web context if available
+    full_prompt = prompt
+    if web_context:
+        full_prompt = f"{web_context}\n\nUSER QUERY: {prompt}"
 
     try:
         openrouter_client = OpenAI(
@@ -229,7 +259,7 @@ def call_openrouter(prompt: str, enable_rag: bool = True, show_metadata: bool = 
             model="microsoft/wizardlm-2-8x22b",
             messages=[
                 {"role": "system", "content": "You are a helpful assistant."},
-                {"role": "user", "content": prompt}
+                {"role": "user", "content": full_prompt}
             ],
             temperature=0.5,
             max_tokens=600
@@ -242,10 +272,15 @@ def call_openrouter(prompt: str, enable_rag: bool = True, show_metadata: bool = 
         return {"model": "OpenRouter", "response": f"[OpenRouter error: {str(e)}]"}
 
 
-def call_perplexity(prompt: str, enable_rag: bool = True, show_metadata: bool = False) -> Dict[str, Any]:
+def call_perplexity(prompt: str, enable_rag: bool = True, show_metadata: bool = False, web_context: Optional[str] = None) -> Dict[str, Any]:
     """Perplexity"""
     if not PERPLEXITY_API_KEY:
         return {"model": "Perplexity", "response": "[Perplexity unavailable: missing API key]"}
+
+    # Prepend web context if available
+    full_prompt = prompt
+    if web_context:
+        full_prompt = f"{web_context}\n\nUSER QUERY: {prompt}"
 
     try:
         headers = {
@@ -259,7 +294,7 @@ def call_perplexity(prompt: str, enable_rag: bool = True, show_metadata: bool = 
             "messages": [
                 {
                     "role": "user",
-                    "content": prompt
+                    "content": full_prompt
                 }
             ],
             "max_tokens": 600,
@@ -287,10 +322,15 @@ def call_perplexity(prompt: str, enable_rag: bool = True, show_metadata: bool = 
         return {"model": "Perplexity", "response": f"[Perplexity error: {str(e)}]"}
 
 
-def call_grok(prompt: str, enable_rag: bool = True, show_metadata: bool = False) -> Dict[str, Any]:
+def call_grok(prompt: str, enable_rag: bool = True, show_metadata: bool = False, web_context: Optional[str] = None) -> Dict[str, Any]:
     """xAI Grok"""
     if not GROK_API_KEY:
         return {"model": "Grok", "response": "[Grok unavailable: missing API key]"}
+
+    # Prepend web context if available
+    full_prompt = prompt
+    if web_context:
+        full_prompt = f"{web_context}\n\nUSER QUERY: {prompt}"
 
     try:
         grok_client = OpenAI(
@@ -298,7 +338,7 @@ def call_grok(prompt: str, enable_rag: bool = True, show_metadata: bool = False)
             base_url="https://api.x.ai/v1"
         )
         preferred_model = os.getenv("GROK_MODEL_NAME", "grok-3")
-        messages = [{"role": "user", "content": prompt}]
+        messages = [{"role": "user", "content": full_prompt}]
 
         response = grok_client.chat.completions.create(
             model=preferred_model,
@@ -317,7 +357,8 @@ def call_grok(prompt: str, enable_rag: bool = True, show_metadata: bool = False)
 async def query_all_models(
     query: str,
     enable_rag: bool = True,
-    show_metadata: bool = False
+    show_metadata: bool = False,
+    web_context: Optional[str] = None
 ) -> List[Dict[str, Any]]:
     """
     Query all 8 AI models in parallel using ThreadPoolExecutor
@@ -326,6 +367,7 @@ async def query_all_models(
         query: User's query string
         enable_rag: Enable RAG (currently not implemented)
         show_metadata: Show model metadata
+        web_context: Optional web search context to prepend to prompts
 
     Returns:
         List of dicts: [{"model": str, "response": str}, ...]
@@ -347,7 +389,7 @@ async def query_all_models(
     # Execute all models in parallel
     with ThreadPoolExecutor(max_workers=8) as executor:
         future_to_model = {
-            executor.submit(func, query, enable_rag, show_metadata): func
+            executor.submit(func, query, enable_rag, show_metadata, web_context): func
             for func in model_functions  # All models have same signature now
         }
 
