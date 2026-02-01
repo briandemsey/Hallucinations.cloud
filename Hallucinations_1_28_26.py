@@ -930,42 +930,65 @@ cohere_key = os.getenv("COHERE_API_KEY")
 deepseek_key = os.getenv("DEEPSEEK_API_KEY")
 
 # === SECURE STRIPE CONFIGURATION - PRODUCTION READY ===
-stripe_environment = os.getenv("STRIPE_ENVIRONMENT", "live")
+# Supports: "live" (production), "test" (Stripe test mode), "dev" (local development without Stripe)
+stripe_environment = os.getenv("STRIPE_ENVIRONMENT", "dev")  # Default to dev for local testing
 
-if stripe_environment == "test":
+# Flag to track if Stripe is available
+STRIPE_AVAILABLE = False
+
+if stripe_environment == "dev":
+    # Development mode - Stripe disabled, app runs without payment features
+    stripe.api_key = None
+    STRIPE_AVAILABLE = False
+    PRICE_IDS = {
+        'consumer': 'dev_consumer',
+        'professional': 'dev_professional',
+        'enterprise': 'dev_enterprise'
+    }
+elif stripe_environment == "test":
     # Test mode - get key from environment
     stripe.api_key = os.getenv("STRIPE_TEST_SECRET_KEY")
     if not stripe.api_key:
-        st.error("🚨 STRIPE_TEST_SECRET_KEY environment variable not set!")
-        st.info("Add your test key to continue in test mode")
-        st.stop()
+        st.warning("⚠️ STRIPE_TEST_SECRET_KEY not set - running in dev mode")
+        STRIPE_AVAILABLE = False
+        PRICE_IDS = {
+            'consumer': 'dev_consumer',
+            'professional': 'dev_professional',
+            'enterprise': 'dev_enterprise'
+        }
+    else:
+        STRIPE_AVAILABLE = True
+        PRICE_IDS = {
+            'consumer': os.getenv("STRIPE_PRICE_CONSUMER_TEST"),
+            'professional': os.getenv("STRIPE_PRICE_PROFESSIONAL_TEST"),
+            'enterprise': os.getenv("STRIPE_PRICE_ENTERPRISE_TEST")
+        }
 else:
-    # Live production mode 
+    # Live production mode
     stripe.api_key = os.getenv("STRIPE_LIVE_SECRET_KEY")
     if not stripe.api_key:
-        st.error("🚨 STRIPE_LIVE_SECRET_KEY environment variable not set!")
-        st.info("Add your live key to accept real payments")
-        st.stop()
+        st.warning("⚠️ STRIPE_LIVE_SECRET_KEY not set - running in dev mode")
+        STRIPE_AVAILABLE = False
+        PRICE_IDS = {
+            'consumer': 'dev_consumer',
+            'professional': 'dev_professional',
+            'enterprise': 'dev_enterprise'
+        }
+    else:
+        STRIPE_AVAILABLE = True
+        PRICE_IDS = {
+            'consumer': os.getenv("STRIPE_PRICE_CONSUMER_LIVE"),
+            'professional': os.getenv("STRIPE_PRICE_PROFESSIONAL_LIVE"),
+            'enterprise': os.getenv("STRIPE_PRICE_ENTERPRISE_LIVE")
+        }
 
-# Environment-specific price IDs
-if stripe_environment == "live":
-    PRICE_IDS = {
-        'consumer': os.getenv("STRIPE_PRICE_CONSUMER_LIVE"),
-        'professional': os.getenv("STRIPE_PRICE_PROFESSIONAL_LIVE"), 
-        'enterprise': os.getenv("STRIPE_PRICE_ENTERPRISE_LIVE")
-    }
-else:
-    PRICE_IDS = {
-        'consumer': os.getenv("STRIPE_PRICE_CONSUMER_TEST"),
-        'professional': os.getenv("STRIPE_PRICE_PROFESSIONAL_TEST"),
-        'enterprise': os.getenv("STRIPE_PRICE_ENTERPRISE_TEST")
-    }
-
-# Validate that all price IDs are set
-for plan, price_id in PRICE_IDS.items():
-    if not price_id:
-        st.error(f"🚨 Missing {plan} price ID for {stripe_environment} mode!")
-        st.stop()
+# Validate price IDs only if Stripe is available
+if STRIPE_AVAILABLE:
+    for plan, price_id in PRICE_IDS.items():
+        if not price_id:
+            st.warning(f"⚠️ Missing {plan} price ID - some features may be limited")
+            STRIPE_AVAILABLE = False
+            break
 
 # Twilio configuration
 TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID")
@@ -974,7 +997,8 @@ TWILIO_VERIFY_SERVICE_SID = os.getenv("TWILIO_VERIFY_SERVICE_SID", "VA_xxxxx")
 TWILIO_FROM_NUMBER = os.getenv("TWILIO_PHONE_NUMBER")
 
 # Initialize Twilio client
-twilio_client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN) if TWILIO_ACCOUNT_SID else None
+twilio_client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN) if TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN else None
+TWILIO_AVAILABLE = bool(twilio_client)
 
 # Setup AI clients
 openai_client = OpenAI(api_key=openai_key) if openai_key else None
@@ -1043,6 +1067,132 @@ def show_enhanced_landing_page():
         show_html_landing_page()
         return
     
+    # === CUT TO THE CHASE - Interactive Interface ===
+    # Logo and title side by side
+    col_logo, col_title = st.columns([1, 4])
+    with col_logo:
+        st.image("logo.png", width=120)
+    with col_title:
+        st.markdown("""
+        <h1 style="color: #e94560; margin-bottom: 0; font-size: 2.2rem; padding-top: 0.5rem;">
+            ✂️ Cut to the Chase
+        </h1>
+        """, unsafe_allow_html=True)
+
+    # Initialize session state for cut-to-chase flow
+    if 'ctc_step' not in st.session_state:
+        st.session_state.ctc_step = 1
+    if 'ctc_phone' not in st.session_state:
+        st.session_state.ctc_phone = ""
+    if 'ctc_verified' not in st.session_state:
+        st.session_state.ctc_verified = False
+    if 'ctc_synopsis' not in st.session_state:
+        st.session_state.ctc_synopsis = None
+
+    # Step 1: Begin Free Trial
+    col_left, col_right = st.columns([2, 3])
+    with col_left:
+        st.markdown("**1. Click here to begin your 3-day trial**")
+    with col_right:
+        if st.checkbox("Start Free Trial", key="ctc_start_trial"):
+            st.session_state.ctc_step = max(st.session_state.ctc_step, 2)
+
+    # Step 2: Enter Phone Number and Send Code
+    col_left, col_right = st.columns([2, 3])
+    with col_left:
+        st.markdown("**2. Enter your phone number**")
+    with col_right:
+        phone = st.text_input("Phone number", placeholder="+1 (555) 123-4567", key="ctc_phone_input", label_visibility="collapsed")
+        if phone:
+            st.session_state.ctc_phone = phone
+            # Show Send Code button
+            if not st.session_state.get('ctc_code_sent', False):
+                if st.button("📱 Send Code", key="ctc_send_code"):
+                    normalized_phone = validate_phone(phone)
+                    if normalized_phone:
+                        if send_verification_code(normalized_phone):
+                            st.session_state.ctc_code_sent = True
+                            st.session_state.ctc_normalized_phone = normalized_phone
+                            st.session_state.ctc_step = max(st.session_state.ctc_step, 3)
+                            st.rerun()
+                    else:
+                        st.error("Please enter a valid phone number")
+            else:
+                st.success("✓ Code sent!")
+                st.session_state.ctc_step = max(st.session_state.ctc_step, 3)
+
+    # Step 3: Enter SMS Code and Verify
+    col_left, col_right = st.columns([2, 3])
+    with col_left:
+        st.markdown("**3. Enter your SMS authorization code**")
+    with col_right:
+        sms_code = st.text_input("SMS Code", placeholder="123456", key="ctc_sms_input", label_visibility="collapsed")
+        if sms_code and len(sms_code) >= 4 and not st.session_state.get('ctc_verified', False):
+            if st.button("✓ Verify Code", key="ctc_verify_code"):
+                normalized_phone = st.session_state.get('ctc_normalized_phone', st.session_state.get('ctc_phone', ''))
+                if verify_phone_code(normalized_phone, sms_code):
+                    st.session_state.ctc_verified = True
+                    st.session_state.ctc_step = max(st.session_state.ctc_step, 4)
+                    st.rerun()
+                else:
+                    st.error("Invalid code. Please try again.")
+        elif st.session_state.get('ctc_verified', False):
+            st.success("✓ Verified")
+
+    # Step 4: Enter Query (wrapped in form so Enter key submits)
+    col_left, col_right = st.columns([2, 3])
+    with col_left:
+        st.markdown("**4. Enter your query**")
+    with col_right:
+        with st.form(key="ctc_query_form", clear_on_submit=False):
+            user_query = st.text_area("Your question", placeholder="Ask anything...", height=80, label_visibility="collapsed")
+            submit_query = st.form_submit_button("🚀 Submit", type="primary")
+
+    # Step 5: One Sentence Answer (shown after query)
+    col_left, col_right = st.columns([2, 3])
+    with col_left:
+        st.markdown("**5. Here's your one-sentence answer**")
+    with col_right:
+        if st.session_state.ctc_synopsis:
+            with st.expander("📋 Synopsis", expanded=True):
+                synopsis = st.session_state.ctc_synopsis
+                st.markdown(f"**{synopsis.get('synopsis', '')}**")
+                st.metric("Rating", f"{synopsis.get('rating', 5.0):.1f}/10")
+        else:
+            st.info("Submit a query above to see your answer")
+
+    # Step 6: Scroll for details
+    col_left, col_right = st.columns([2, 3])
+    with col_left:
+        st.markdown("**6. Scroll down for detailed analysis from all 8 AI models**")
+    with col_right:
+        st.caption("⬇️ Detailed results appear below after you submit a query")
+
+    # Step 7: Next Query
+    col_left, col_right = st.columns([2, 3])
+    with col_left:
+        st.markdown("**7. Enter your next query**")
+    with col_right:
+        st.caption("Use the query box above (Step 4) for additional questions")
+
+    st.markdown("---")
+
+    # Process the query if submitted
+    if submit_query and user_query:
+        # Initialize required session state for the app
+        st.session_state.show_landing = False
+        st.session_state.authenticated = True
+        st.session_state.run_analysis = True
+        st.session_state.current_query = user_query
+        st.session_state.user_phone = phone if phone else "Demo User"
+        st.session_state.user_email = "demo@hallucinations.cloud"
+        st.session_state.customer_id = "test_customer_id"
+        st.session_state.subscription_status = "trialing"
+        st.session_state.trial_end = (datetime.now() + timedelta(days=3)).isoformat()
+        st.session_state.queries_today = 0
+        st.session_state.conversation_count = st.session_state.get('conversation_count', 0) + 1
+        st.rerun()
+
     # Add button to switch to HTML landing page
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
@@ -1076,6 +1226,7 @@ def show_enhanced_landing_page():
         background: #f8f9fa;
         border-radius: 0.5rem;
         margin: 0.5rem;
+        color: #1a1a2e;
     }
     .stat-number {
         font-size: 2rem;
@@ -1139,19 +1290,18 @@ def show_enhanced_landing_page():
     </style>
     """, unsafe_allow_html=True)
     
-    # Hero Section with Logo - tight spacing
-    st.markdown("<div style='margin-bottom: -30px;'></div>", unsafe_allow_html=True)
-    col1, col2, col3 = st.columns([0.3, 3, 2.7])
-    with col2:
-        st.image("logo.png", width=300)
-    st.markdown("<div style='margin-top: -30px;'></div>", unsafe_allow_html=True)
-    st.markdown("""
-    <div class="hero-container">
-        <h1 class="hero-title">H-LLM Multi-Model™</h1>
-        <p class="hero-subtitle">The premier multi-model AI analysis platform that compares 8 leading LLMs simultaneously, detects hallucinations, and provides comprehensive security analysis through Red/Blue/Purple team methodologies.</p>
-        <p style="font-weight:bold; text-transform:uppercase; color:#fff; margin-top:16px; font-size:14px;">Questions may be submitted in English, Spanish, Japanese, Mandarin, and 20+ other languages</p>
-    </div>
-    """, unsafe_allow_html=True)
+    # Hero Section with Logo and Title side by side
+    col_logo, col_text = st.columns([1, 2])
+    with col_logo:
+        st.image("logo.png", width=280)
+    with col_text:
+        st.markdown("""
+        <div style="padding-top: 20px;">
+            <h1 style="color: #667eea; font-size: 2.8rem; font-weight: 800; margin-bottom: 0.5rem;">H-LLM Multi-Model™</h1>
+            <p style="color: #ffffff; font-size: 1.1rem; line-height: 1.6;">The premier multi-model AI analysis platform that compares 8 leading LLMs simultaneously, detects hallucinations, and provides comprehensive security analysis through Red/Blue/Purple team methodologies.</p>
+            <p style="font-weight:bold; text-transform:uppercase; color:#667eea; margin-top:16px; font-size:13px;">Questions may be submitted in English, Spanish, Japanese, Mandarin, and 20+ other languages</p>
+        </div>
+        """, unsafe_allow_html=True)
 
     # Key Stats using pure Streamlit
     st.markdown("### 📊 Platform Overview")
@@ -1162,31 +1312,31 @@ def show_enhanced_landing_page():
         st.markdown("""
         <div class="stat-box">
             <div class="stat-number">8</div>
-            <div>AI Models</div>
+            <div>🤖 AI Models</div>
         </div>
         """, unsafe_allow_html=True)
-    
+
     with col2:
         st.markdown("""
         <div class="stat-box">
             <div class="stat-number">3</div>
-            <div>Security Teams</div>
+            <div>🛡️ Security Teams</div>
         </div>
         """, unsafe_allow_html=True)
-    
+
     with col3:
         st.markdown("""
         <div class="stat-box">
             <div class="stat-number">5</div>
-            <div>Free Daily Queries</div>
+            <div>💬 Free Daily Queries</div>
         </div>
         """, unsafe_allow_html=True)
-    
+
     with col4:
         st.markdown("""
         <div class="stat-box">
             <div class="stat-number">3</div>
-            <div>Day Free Trial</div>
+            <div>🎁 Day Free Trial</div>
         </div>
         """, unsafe_allow_html=True)
     
@@ -2583,7 +2733,9 @@ SUPER_USER_PHONES = [
    "+16504008061",  # DJ Waldow
    "+19495007539",  # Erin Conley
    "+972507510007", # Uri Levine
-   "+61476165706"   # Julie Demsey
+   "+61476165706",  # Julie Demsey
+   "+19498877593",  # Sharon Conley
+   "+18132207444"   # Jeff Berg
 ]
 
 def is_super_user():
@@ -2873,8 +3025,8 @@ def show_enhanced_user_sidebar():
    with st.sidebar:
        st.markdown("---")
        st.markdown("### 👤 Your Account")
-       st.write(f"📱 {st.session_state.user_phone}")
-       st.write(f"📧 {st.session_state.user_email}")
+       st.write(f"📱 {st.session_state.get('user_phone', 'Demo User')}")
+       st.write(f"📧 {st.session_state.get('user_email', 'demo@test.com')}")
        
        # Show usage and subscription status
        can_query, used, limit = check_daily_limit()
@@ -3228,12 +3380,18 @@ def display_conversation_document():
 # === MAIN APP FLOW CONTROL ===
 def main_app_flow():
    """Main application flow with proper authentication handling"""
-   
+
+   # Check if user is authenticated via Cut-to-Chase flow (bypass normal auth for local testing)
+   if st.session_state.get('authenticated', False):
+       # User is authenticated, don't show landing or auth pages
+       # The main app content will be rendered after this function
+       return
+
    # Show landing page first for new users
    if st.session_state.get('show_landing', True):
        show_enhanced_landing_page()
        st.stop()
-   
+
    # Show upgrade page for expired users
    elif st.session_state.get('show_upgrade', False):
        col1, col2 = st.columns([1, 8])
@@ -3244,7 +3402,7 @@ def main_app_flow():
        st.markdown("### 🚀 Choose Your Subscription")
        st.info("Your trial has expired. Please select a plan to continue using our advanced AI analysis platform.")
        show_enhanced_upgrade_options()
-       
+
        # Option to return to trial if there's time left
        if st.button("← Check Trial Status"):
            try:
@@ -3257,7 +3415,7 @@ def main_app_flow():
            except:
                pass
        st.stop()
-   
+
    # Show authentication page for unauthenticated users
    else:
        show_enhanced_auth_page()
@@ -3560,26 +3718,29 @@ def show_followup_interface(previous_query, previous_results):
     """Show follow-up question interface after analysis"""
     st.markdown("---")
     st.subheader("💬 Continue the Conversation")
-    
-    col1, col2 = st.columns([3, 1])
-    
-    with col1:
-        followup_question = st.text_input(
-            "Ask a follow-up question:",
-            placeholder="Build on the previous responses...",
-            help="Your follow-up will be added to the ongoing conversation",
-            key="followup_input"
-        )
-    
-    with col2:
-        if st.button("🔄 Ask Follow-up", type="secondary", use_container_width=True):
-            if followup_question:
-                context_query = create_followup_context(previous_query, previous_results, followup_question)
-                st.session_state.current_query = context_query
-                st.session_state.run_analysis = True
-                st.session_state.is_followup = True
-                st.rerun()
-    
+
+    # Wrap in form so Enter key submits
+    with st.form(key="followup_form", clear_on_submit=False):
+        col1, col2 = st.columns([3, 1])
+
+        with col1:
+            followup_question = st.text_input(
+                "Ask a follow-up question:",
+                placeholder="Build on the previous responses...",
+                help="Your follow-up will be added to the ongoing conversation"
+            )
+
+        with col2:
+            submit_followup = st.form_submit_button("🔄 Ask Follow-up", use_container_width=True)
+
+    # Process after form submission
+    if submit_followup and followup_question:
+        context_query = create_followup_context(previous_query, previous_results, followup_question)
+        st.session_state.current_query = context_query
+        st.session_state.run_analysis = True
+        st.session_state.is_followup = True
+        st.rerun()
+
     st.caption(f"Previous query: {previous_query[:100]}...")
     return followup_question
 
@@ -3757,6 +3918,145 @@ def perform_purple_team_analysis(query, responses, red_analysis, blue_analysis):
        
    except Exception as e:
        return f"Purple Team analysis failed: {str(e)}"
+
+# === SYNOPSIS GENERATION FUNCTION ===
+def generate_synopsis(query, model_responses, red_analysis="", blue_analysis="", purple_analysis="", hscore=5.0):
+    """
+    Generate a one-sentence synopsis with rating from all analysis data.
+    This is the "Cut to the Chase" feature - instant answer at the top.
+    """
+    if not openai_client:
+        return {
+            "synopsis": "Synopsis unavailable (OpenAI API key required)",
+            "rating": 5.0,
+            "confidence": "Medium"
+        }
+
+    try:
+        # Format all model responses
+        responses_text = "\n\n".join([f"[{name}]: {resp}" for name, resp in model_responses])
+
+        synopsis_prompt = f"""You are a synthesis expert. Your task is to create a ONE SENTENCE answer with a confidence rating.
+
+ORIGINAL QUESTION: {query}
+
+8 AI MODEL RESPONSES:
+{responses_text}
+
+RED TEAM ANALYSIS (risks/concerns):
+{red_analysis if red_analysis else "Not available"}
+
+BLUE TEAM ANALYSIS (reliability/trust):
+{blue_analysis if blue_analysis else "Not available"}
+
+PURPLE TEAM SYNTHESIS:
+{purple_analysis if purple_analysis else "Not available"}
+
+H-SCORE: {hscore}/10
+
+YOUR TASK:
+1. Synthesize ALL the above into ONE SENTENCE that directly answers the user's question
+2. Account for any disagreements, risks, or caveats identified
+3. Provide a confidence rating from 0-10
+
+RESPOND IN EXACTLY THIS FORMAT (no other text):
+SYNOPSIS: [Your one sentence answer here]
+RATING: [X.X]/10
+CONFIDENCE: [High/Medium/Low]
+"""
+
+        response = openai_client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": "You are an expert at synthesizing complex information into clear, accurate one-sentence summaries."},
+                {"role": "user", "content": synopsis_prompt}
+            ],
+            temperature=0.3,
+            max_tokens=300
+        )
+
+        result_text = response.choices[0].message.content.strip()
+
+        # Parse the response
+        synopsis = ""
+        rating = 5.0
+        confidence = "Medium"
+
+        for line in result_text.split("\n"):
+            line = line.strip()
+            if line.startswith("SYNOPSIS:"):
+                synopsis = line.replace("SYNOPSIS:", "").strip()
+            elif line.startswith("RATING:"):
+                try:
+                    rating_str = line.replace("RATING:", "").replace("/10", "").strip()
+                    rating = float(rating_str)
+                except:
+                    rating = 5.0
+            elif line.startswith("CONFIDENCE:"):
+                confidence = line.replace("CONFIDENCE:", "").strip()
+
+        # Fallback if parsing failed
+        if not synopsis:
+            synopsis = result_text.split("\n")[0] if result_text else "Unable to generate synopsis"
+
+        return {
+            "synopsis": synopsis,
+            "rating": rating,
+            "confidence": confidence
+        }
+
+    except Exception as e:
+        return {
+            "synopsis": f"Synopsis generation failed: {str(e)}",
+            "rating": 5.0,
+            "confidence": "Low"
+        }
+
+def display_synopsis(synopsis_data):
+    """Display the synopsis prominently at the top of results"""
+    synopsis = synopsis_data.get("synopsis", "")
+    rating = synopsis_data.get("rating", 5.0)
+    confidence = synopsis_data.get("confidence", "Medium")
+
+    # Color based on rating
+    if rating >= 8:
+        color = "#28a745"  # Green
+        emoji = "🟢"
+    elif rating >= 6:
+        color = "#ffc107"  # Yellow
+        emoji = "🟡"
+    elif rating >= 4:
+        color = "#fd7e14"  # Orange
+        emoji = "🟠"
+    else:
+        color = "#dc3545"  # Red
+        emoji = "🔴"
+
+    st.markdown(f"""
+    <div style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+                padding: 1.5rem; border-radius: 1rem; margin-bottom: 1.5rem;
+                border: 3px solid {color}; box-shadow: 0 4px 15px rgba(0,0,0,0.2);">
+        <h2 style="color: #e94560; margin-bottom: 0.5rem; text-align: center;">
+            ✂️ Cut to the Chase
+        </h2>
+        <p style="font-size: 1.3rem; color: white; text-align: center; margin: 1rem 0; line-height: 1.6;">
+            "{synopsis}"
+        </p>
+        <div style="display: flex; justify-content: center; gap: 2rem; margin-top: 1rem;">
+            <div style="text-align: center;">
+                <span style="font-size: 2rem; color: {color};">{emoji} {rating:.1f}/10</span>
+                <br><span style="color: #aaa;">Rating</span>
+            </div>
+            <div style="text-align: center;">
+                <span style="font-size: 1.5rem; color: white;">{confidence}</span>
+                <br><span style="color: #aaa;">Confidence</span>
+            </div>
+        </div>
+        <p style="text-align: center; color: #888; margin-top: 1rem; font-size: 0.9rem;">
+            ⬇️ Scroll down for detailed analysis from 8 AI models ⬇️
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
 
 def extract_score_from_analysis(analysis_text, score_type="Risk Score"):
    """Extract numerical score from analysis text"""
@@ -4049,15 +4349,7 @@ st.caption("🛡️ All queries are checked for content policy compliance using 
 if st.session_state.conversation_count > 0:
    st.info(f"💬 Conversation Mode Active - Query #{st.session_state.conversation_count + 1}")
 
-# Query input
-user_query = st.text_input(
-   "Ask anything - continue the conversation or start a new topic:",
-   placeholder="Enter your question here...",
-   help="Your query will be added to the conversation document along with all model responses",
-   key="main_query_input"  # STATIC KEY
-)
-
-# File attachment below query input
+# File attachment BEFORE form (file_uploader doesn't work well inside forms)
 st.caption("📎 Attach file (optional) · PDF, TXT, CSV, DOCX · 5MB max")
 uploaded_file = st.file_uploader(
     "Attach file",
@@ -4073,36 +4365,42 @@ if uploaded_file and uploaded_file.size > 5_000_000:
 elif uploaded_file:
     st.success(f"📎 {uploaded_file.name} ({uploaded_file.size // 1024}KB)")
 
-# Analysis options in main interface
-col1, col2 = st.columns([3, 1])
-with col1:
-   if st.button("🚀 Submit Query", type="primary", key="submit_query_button") and user_query:
-       # Check content moderation
-       if process_query_with_moderation(user_query):
-           # Build full query with file content if attached
-           full_query = user_query
-           if uploaded_file:
-               file_content = extract_text_from_file(uploaded_file)
-               if file_content and not file_content.startswith("["):
-                   full_query = f"{user_query}\n\n--- Attached File: {uploaded_file.name} ---\n{file_content}"
-           st.session_state.run_analysis = True
-           st.session_state.current_query = full_query
-                   
+# Query input wrapped in form so Enter key submits
+with st.form(key="main_query_form", clear_on_submit=False):
+    user_query = st.text_input(
+       "Ask anything - continue the conversation or start a new topic:",
+       placeholder="Enter your question here...",
+       help="Your query will be added to the conversation document along with all model responses"
+    )
 
-with col2:
-   analysis_depth = st.selectbox(
-       "Analysis Depth:",
-       ["Quick", "Standard", "Comprehensive"],
-       index=1,
-       help="Quick: Basic comparison, Standard: +Red/Blue, Comprehensive: Full Red/Blue/Purple"
-   )
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        submit_button = st.form_submit_button("🚀 Submit Query", type="primary")
+    with col2:
+        analysis_depth = st.selectbox(
+            "Analysis Depth:",
+            ["Quick", "Standard", "Comprehensive"],
+            index=1,
+            help="Quick: Basic comparison, Standard: +Red/Blue, Comprehensive: Full Red/Blue/Purple"
+        )
+
+# Process query after form submission
+if submit_button and user_query:
+    # Check content moderation
+    if process_query_with_moderation(user_query):
+        # Build full query with file content if attached
+        full_query = user_query
+        if uploaded_file:
+            file_content = extract_text_from_file(uploaded_file)
+            if file_content and not file_content.startswith("["):
+                full_query = f"{user_query}\n\n--- Attached File: {uploaded_file.name} ---\n{file_content}"
+        st.session_state.run_analysis = True
+        st.session_state.current_query = full_query
 
 # Main analysis execution
 if st.session_state.get('run_analysis') and st.session_state.get('current_query'):
    query = st.session_state.current_query
-   
-   st.subheader("📊 Model Responses")
-   
+
    # Get available models
    available_models = []
    if openai_key: available_models.append(call_openai_sync)
@@ -4113,10 +4411,12 @@ if st.session_state.get('run_analysis') and st.session_state.get('current_query'
    if openrouter_key: available_models.append(call_openrouter_sync)
    if perplexity_key: available_models.append(call_perplexity_sync)
    if grok_key: available_models.append(call_grok_sync)
-   
+
    if not available_models:
        st.error("No API keys available! Please set up at least one API key.")
    else:
+       # === PHASE 1: COLLECT ALL DATA (no display yet) ===
+
        # Get web search context for current information
        with st.spinner("🔍 Searching web for current information..."):
            web_context = get_web_search_context(query)
@@ -4124,12 +4424,11 @@ if st.session_state.get('run_analysis') and st.session_state.get('current_query'
        # Augment query with web search results
        if web_context:
            augmented_query = f"{web_context}\n\nUSER QUESTION: {query}\n\nPlease answer using the current web search results above when relevant."
-           st.success("✅ Web search results added to query")
        else:
            augmented_query = query
 
        # Query all models
-       with st.spinner("Querying models..."):
+       with st.spinner("🤖 Querying 8 AI models..."):
            results = []
            for model_func in available_models:
                try:
@@ -4137,97 +4436,131 @@ if st.session_state.get('run_analysis') and st.session_state.get('current_query'
                    results.append(result)
                except Exception as e:
                    results.append((model_func.__name__, f"[Error: {str(e)}]"))
-       
+
        # Increment usage counter
        increment_usage()
-       
-       # Display model responses
-       for model_name, response in results:
-           with st.expander(f"**{model_name}**", expanded=True):
-               st.text_area(f"{model_name} response:", value=response, height=150, key=f"response_{model_name}_{st.session_state.conversation_count}")
-       
-       # === CONTRADICTION ANALYSIS (Original Feature) ===
-       st.subheader("⚖️ Contradiction Analysis")
+
+       # Initialize analysis variables
+       red_analysis = ""
+       blue_analysis = ""
+       purple_analysis = ""
+       contradiction_text = ""
+
+       # Determine which analyses to run
+       run_red = st.session_state.get('enable_red_team', True) or analysis_depth in ["Standard", "Comprehensive"]
+       run_blue = st.session_state.get('enable_blue_team', True) or analysis_depth in ["Standard", "Comprehensive"]
+       run_purple = st.session_state.get('enable_purple_team', True) or analysis_depth == "Comprehensive"
+
+       # Run contradiction analysis
        if openai_client:
-           with st.spinner("Analyzing for contradictions..."):
-               model_responses = "\n\n".join([f"{name}: {resp}" for name, resp in results])
+           with st.spinner("⚖️ Analyzing for contradictions..."):
+               model_responses_text = "\n\n".join([f"{name}: {resp}" for name, resp in results])
                contradiction_prompt = f"""
                Analyze these AI model responses for contradictions or significant disagreements:
-               
-               {model_responses}
-               
+
+               {model_responses_text}
+
                Provide a brief analysis of any contradictions found, or confirm if responses are generally consistent.
                Focus on:
                1. Key points of agreement
                2. Notable differences or contradictions
                3. Variations in perspective or emphasis
                4. Overall consistency assessment
-               
+
                Format as numbered points for clarity.
                """
-               
                try:
                    contradiction_analysis = call_openai_sync(contradiction_prompt)
                    contradiction_text = contradiction_analysis[1]
-                   st.success(contradiction_text)
                except Exception as e:
-                   st.error(f"Contradiction analysis failed: {str(e)}")
+                   contradiction_text = f"Contradiction analysis failed: {str(e)}"
+
+       # Run Red Team Analysis
+       if run_red:
+           with st.spinner("🔴 Running Red Team analysis..."):
+               red_analysis = perform_red_team_analysis(query, results)
+
+       # Run Blue Team Analysis
+       if run_blue:
+           with st.spinner("🔵 Running Blue Team analysis..."):
+               blue_analysis = perform_blue_team_analysis(query, results)
+
+       # Run Purple Team Analysis
+       if run_purple and red_analysis and blue_analysis:
+           with st.spinner("🟣 Running Purple Team synthesis..."):
+               purple_analysis = perform_purple_team_analysis(query, results, red_analysis, blue_analysis)
+
+       # Calculate enhanced H-Score
+       with st.spinner("🏆 Calculating H-Score..."):
+           enhanced_scores = calculate_enhanced_hscore(results, red_analysis, blue_analysis, purple_analysis)
+
+       # === PHASE 2: GENERATE SYNOPSIS ===
+       with st.spinner("✂️ Generating synopsis..."):
+           synopsis_data = generate_synopsis(
+               query,
+               results,
+               red_analysis,
+               blue_analysis,
+               purple_analysis,
+               enhanced_scores.get('final', 5.0)
+           )
+
+       # === PHASE 3: DISPLAY RESULTS (Synopsis FIRST) ===
+
+       # Display Synopsis at the TOP
+       display_synopsis(synopsis_data)
+
+       # Now show detailed results
+       st.subheader("📊 Detailed Analysis")
+       st.caption("Scroll down for full analysis from all 8 AI models")
+
+       if web_context:
+           st.success("✅ Web search results were added to query")
+
+       # Display model responses
+       st.markdown("### 🤖 Model Responses")
+       for model_name, response in results:
+           with st.expander(f"**{model_name}**", expanded=False):
+               st.text_area(f"{model_name} response:", value=response, height=150, key=f"response_{model_name}_{st.session_state.conversation_count}")
+
+       # === CONTRADICTION ANALYSIS ===
+       st.subheader("⚖️ Contradiction Analysis")
+       if contradiction_text:
+           st.success(contradiction_text)
        else:
            st.info("Contradiction analysis requires OpenAI API key")
-       
-       # === ENHANCED ANALYSIS SECTION ===
+
+       # === SECURITY ANALYSIS SECTION ===
        st.markdown("---")
        st.subheader("🔍 Security Analysis")
-       
-       # Initialize analysis variables
-       red_analysis = ""
-       blue_analysis = ""
-       purple_analysis = ""
-       
-       # Determine which analyses to run
-       run_red = st.session_state.get('enable_red_team', True) or analysis_depth in ["Standard", "Comprehensive"]
-       run_blue = st.session_state.get('enable_blue_team', True) or analysis_depth in ["Standard", "Comprehensive"] 
-       run_purple = st.session_state.get('enable_purple_team', True) or analysis_depth == "Comprehensive"
-       
+
        # Create analysis columns
        analysis_cols = st.columns(3)
-       
+
        # Red Team Analysis
-       if run_red:
+       if run_red and red_analysis:
            with analysis_cols[0]:
                st.markdown("### 🔴 Red Team Analysis")
-               with st.spinner("Running red team analysis..."):
-                   red_analysis = perform_red_team_analysis(query, results)
-               
-               with st.expander("🔴 Red Team Report", expanded=True):
+               with st.expander("🔴 Red Team Report", expanded=False):
                    st.markdown(red_analysis)
-       
-       # Blue Team Analysis  
-       if run_blue:
+
+       # Blue Team Analysis
+       if run_blue and blue_analysis:
            with analysis_cols[1]:
                st.markdown("### 🔵 Blue Team Analysis")
-               with st.spinner("Running blue team analysis..."):
-                   blue_analysis = perform_blue_team_analysis(query, results)
-               
-               with st.expander("🔵 Blue Team Report", expanded=True):
+               with st.expander("🔵 Blue Team Report", expanded=False):
                    st.markdown(blue_analysis)
-       
+
        # Purple Team Analysis
-       if run_purple and red_analysis and blue_analysis:
+       if run_purple and purple_analysis:
            with analysis_cols[2]:
                st.markdown("### 🟣 Purple Team Analysis")
-               with st.spinner("Running purple team synthesis..."):
-                   purple_analysis = perform_purple_team_analysis(query, results, red_analysis, blue_analysis)
-               
-               with st.expander("🟣 Purple Team Report", expanded=True):
+               with st.expander("🟣 Purple Team Report", expanded=False):
                    st.markdown(purple_analysis)
-       
+
        # === ENHANCED H-SCORE DASHBOARD ===
        st.markdown("---")
        st.subheader("🏆 Enhanced H-Score Analysis")
-       
-       # Calculate enhanced H-Score
-       enhanced_scores = calculate_enhanced_hscore(results, red_analysis, blue_analysis, purple_analysis)
        
        # Display enhanced metrics
        score_cols = st.columns(5)
