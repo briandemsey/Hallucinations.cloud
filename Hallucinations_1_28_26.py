@@ -3567,7 +3567,7 @@ def call_gemini_sync(prompt):
        return ("Gemini", "[Gemini unavailable: missing API key]")
 
    # Try stable model names in order (updated Nov 2024)
-   models_to_try = ["gemini-2.0-flash-exp", "gemini-1.5-flash-latest", "gemini-1.5-pro-latest", "gemini-1.0-pro"]
+   models_to_try = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"]
    last_error = None
 
    for model_name in models_to_try:
