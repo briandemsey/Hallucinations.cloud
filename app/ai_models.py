@@ -142,8 +142,8 @@ def call_gemini(prompt: str, enable_rag: bool = True, show_metadata: bool = Fals
     if web_context:
         full_prompt = f"{web_context}\n\nUSER QUERY: {prompt}"
 
-    # Use REST API directly - try v1beta endpoint with gemini-pro
-    api_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key={GOOGLE_API_KEY}"
+    # Use REST API directly - try v1beta endpoint with gemini-2.0-flash
+    api_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GOOGLE_API_KEY}"
 
     headers = {"Content-Type": "application/json"}
     payload = {
