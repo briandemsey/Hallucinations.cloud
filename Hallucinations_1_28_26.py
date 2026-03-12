@@ -1074,7 +1074,7 @@ def show_enhanced_landing_page():
         st.image("logo.png", width=120)
     with col_title:
         st.markdown("""
-        <h1 style="color: #e94560; margin-bottom: 0; font-size: 2.2rem; padding-top: 0.5rem;">
+        <h1 style="color: #ff3b3b; margin-bottom: 0; font-size: 2.2rem; padding-top: 0.5rem;">
             ✂️ Cut to the Chase
         </h1>
         """, unsafe_allow_html=True)
@@ -1203,7 +1203,7 @@ def show_enhanced_landing_page():
     st.markdown("""
     <style>
     .hero-container {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, #ff3b3b 0%, #cc2f2f 100%);
         color: white;
         padding: 3rem 2rem;
         border-radius: 1rem;
@@ -1231,16 +1231,16 @@ def show_enhanced_landing_page():
     .stat-number {
         font-size: 2rem;
         font-weight: bold;
-        color: #667eea;
+        color: #ff3b3b;
         margin: 0;
     }
     .model-badge {
         background: white;
-        border: 2px solid #667eea;
+        border: 2px solid #ff3b3b;
         border-radius: 0.5rem;
         padding: 0.5rem 1rem;
         margin: 0.25rem;
-        color: #667eea;
+        color: #ff3b3b;
         font-weight: 600;
         text-align: center;
         display: inline-block;
@@ -1255,13 +1255,13 @@ def show_enhanced_landing_page():
         transition: all 0.3s ease;
     }
     .pricing-card:hover {
-        border-color: #667eea;
+        border-color: #ff3b3b;
         box-shadow: 0 8px 25px rgba(102, 126, 234, 0.15);
         transform: translateY(-2px);
     }
     .pricing-card.recommended {
-        border-color: #667eea;
-        background: linear-gradient(135deg, #f8f9ff 0%, #e8ebff 100%);
+        border-color: #ff3b3b;
+        background: linear-gradient(135deg, #fff8f8 0%, #ffe8e8 100%);
         position: relative;
     }
     .recommended-badge {
@@ -1269,7 +1269,7 @@ def show_enhanced_landing_page():
         top: -10px;
         left: 50%;
         transform: translateX(-50%);
-        background: #667eea;
+        background: #ff3b3b;
         color: white;
         padding: 0.25rem 1rem;
         border-radius: 1rem;
@@ -1279,7 +1279,7 @@ def show_enhanced_landing_page():
     .price-large {
         font-size: 2.5rem;
         font-weight: 800;
-        color: #667eea;
+        color: #ff3b3b;
         margin: 0.5rem 0;
     }
     .price-period {
@@ -1297,9 +1297,9 @@ def show_enhanced_landing_page():
     with col_text:
         st.markdown("""
         <div style="padding-top: 20px;">
-            <h1 style="color: #667eea; font-size: 2.8rem; font-weight: 800; margin-bottom: 0.5rem;">H-LLM Multi-Model™</h1>
+            <h1 style="color: #ff3b3b; font-size: 2.8rem; font-weight: 800; margin-bottom: 0.5rem;">H-LLM Multi-Model™</h1>
             <p style="color: #ffffff; font-size: 1.1rem; line-height: 1.6;">The premier multi-model AI analysis platform that compares 8 leading LLMs simultaneously, detects hallucinations, and provides comprehensive security analysis through Red/Blue/Purple team methodologies.</p>
-            <p style="font-weight:bold; text-transform:uppercase; color:#667eea; margin-top:16px; font-size:13px;">Questions may be submitted in English, Spanish, Japanese, Mandarin, and 20+ other languages</p>
+            <p style="font-weight:bold; text-transform:uppercase; color:#ff3b3b; margin-top:16px; font-size:13px;">Questions may be submitted in English, Spanish, Japanese, Mandarin, and 20+ other languages</p>
         </div>
         """, unsafe_allow_html=True)
 
@@ -1642,7 +1642,7 @@ def show_html_landing_page():
             body {
                 font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
                 line-height: 1.6;
-                background: linear-gradient(135deg, #0f1419 0%, #1a2332 50%, #667eea 100%);
+                background: linear-gradient(135deg, #0f1419 0%, #1a2332 50%, #ff3b3b 100%);
                 min-height: 100vh;
                 color: #333;
             }
@@ -1694,7 +1694,7 @@ def show_html_landing_page():
                 font-weight: 300;
                 margin-bottom: 20px;
                 letter-spacing: -1px;
-                background: linear-gradient(45deg, #ffffff, #e0e7ff);
+                background: linear-gradient(45deg, #ffffff, #ffe0e0);
                 -webkit-background-clip: text;
                 -webkit-text-fill-color: transparent;
                 background-clip: text;
@@ -1705,7 +1705,7 @@ def show_html_landing_page():
                 opacity: 0.95;
                 margin-bottom: 30px;
                 font-style: italic;
-                color: #e0e7ff;
+                color: #ffe0e0;
             }
 
             .hero-description {
@@ -1722,7 +1722,7 @@ def show_html_landing_page():
                 box-shadow: 0 25px 60px rgba(0,0,0,0.3);
                 transform: perspective(1000px) rotateY(-5deg);
                 transition: transform 0.3s ease;
-                background: linear-gradient(135deg, #667eea, #764ba2);
+                background: linear-gradient(135deg, #ff3b3b, #cc2f2f);
                 min-height: 300px;
                 display: flex;
                 align-items: center;
@@ -1759,7 +1759,7 @@ def show_html_landing_page():
             }
 
             .cta-primary {
-                background: linear-gradient(45deg, #667eea, #764ba2);
+                background: linear-gradient(45deg, #ff3b3b, #cc2f2f);
                 color: white;
                 box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
             }
@@ -1804,7 +1804,7 @@ def show_html_landing_page():
 
            /* Highlighted Terms */
            .highlight {
-               background: linear-gradient(45deg, #667eea, #764ba2);
+               background: linear-gradient(45deg, #ff3b3b, #cc2f2f);
                -webkit-background-clip: text;
                -webkit-text-fill-color: transparent;
                background-clip: text;
@@ -1830,7 +1830,7 @@ def show_html_landing_page():
            .stat-number {
                font-size: 2.5rem;
                font-weight: 700;
-               color: #667eea;
+               color: #ff3b3b;
                margin-bottom: 8px;
            }
 
@@ -1853,8 +1853,8 @@ def show_html_landing_page():
            }
 
            .model-card {
-               background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
-               color: #1565c0;
+               background: linear-gradient(135deg, #fde3e3 0%, #ffbbbb 100%);
+               color: #cc2f2f;
                padding: 15px 20px;
                border-radius: 15px;
                text-align: center;
@@ -1993,7 +1993,7 @@ def show_html_landing_page():
                border-radius: 20px;
                padding: 35px;
                margin: 40px 0;
-               border-left: 6px solid #667eea;
+               border-left: 6px solid #ff3b3b;
            }
 
            .enterprise-features h3 {
@@ -2020,7 +2020,7 @@ def show_html_landing_page():
 
            .feature-item::before {
                content: "✔";
-               color: #667eea;
+               color: #ff3b3b;
                font-weight: bold;
                margin-right: 12px;
                font-size: 1.2rem;
@@ -2030,7 +2030,7 @@ def show_html_landing_page():
            .final-cta {
                text-align: center;
                padding: 50px 0;
-               background: linear-gradient(135deg, #0f1419 0%, #667eea 100%);
+               background: linear-gradient(135deg, #0f1419 0%, #ff3b3b 100%);
                color: white;
                border-radius: 25px;
                margin: 40px 20px;
@@ -3182,7 +3182,7 @@ def create_simple_checkout_session(plan, payment_method):
        <div style="text-align: center; margin: 20px 0;">
            <a href="{session.url}" target="_blank" style="text-decoration: none;">
                <button style="
-                   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                   background: linear-gradient(135deg, #ff3b3b 0%, #cc2f2f 100%);
                    color: white;
                    padding: 15px 30px;
                    border: none;
@@ -4040,7 +4040,7 @@ def display_synopsis(synopsis_data):
     <div style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
                 padding: 1.5rem; border-radius: 1rem; margin-bottom: 1.5rem;
                 border: 3px solid {color}; box-shadow: 0 4px 15px rgba(0,0,0,0.2);">
-        <h2 style="color: #e94560; margin-bottom: 0.5rem; text-align: center;">
+        <h2 style="color: #ff3b3b; margin-bottom: 0.5rem; text-align: center;">
             ✂️ Cut to the Chase
         </h2>
         <p style="font-size: 1.3rem; color: white; text-align: center; margin: 1rem 0; line-height: 1.6;">
