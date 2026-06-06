@@ -919,17 +919,17 @@ def show_anthropic_moderation_status():
 load_dotenv()
 
 # Get API keys (strip whitespace to handle copy/paste issues with newlines)
-openai_key = os.getenv("OPENAI_API_KEY")
+openai_key = (os.getenv("OPENAI_API_KEY") or "").strip() or None
 _raw_anthropic_key = os.getenv("ANTHROPIC_API_KEY")
 anthropic_key = _raw_anthropic_key.strip() if _raw_anthropic_key else None
-google_key = os.getenv("GOOGLE_API_KEY")
+google_key = (os.getenv("GOOGLE_API_KEY") or "").strip() or None
 google_search_engine_id = os.getenv("GOOGLE_SEARCH_ENGINE_ID")
-tavily_key = os.getenv("TAVILY_API_KEY")
+tavily_key = (os.getenv("TAVILY_API_KEY") or "").strip() or None
 newsapi_key = os.getenv("NEWSAPI_KEY")
-openrouter_key = os.getenv("OPENROUTER_API_KEY")
-grok_key = os.getenv("GROK_API_KEY")
-perplexity_key = os.getenv("PERPLEXITY_API_KEY")
-cohere_key = os.getenv("COHERE_API_KEY")
+openrouter_key = (os.getenv("OPENROUTER_API_KEY") or "").strip() or None
+grok_key = (os.getenv("GROK_API_KEY") or "").strip() or None
+perplexity_key = (os.getenv("PERPLEXITY_API_KEY") or "").strip() or None
+cohere_key = (os.getenv("COHERE_API_KEY") or "").strip() or None
 deepseek_key = os.getenv("DEEPSEEK_API_KEY")
 
 # === SECURE STRIPE CONFIGURATION - PRODUCTION READY ===
