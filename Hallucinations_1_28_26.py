@@ -4519,7 +4519,10 @@ if st.session_state.get('run_analysis') and st.session_state.get('current_query'
            for model_func in available_models:
                try:
                    result = model_func(augmented_query)
-                   results.append(result)
+                   if result is not None and isinstance(result, tuple) and len(result) == 2:
+                       results.append(result)
+                   else:
+                       results.append((model_func.__name__, "[Error: model returned no response]"))
                except Exception as e:
                    results.append((model_func.__name__, f"[Error: {str(e)}]"))
 
