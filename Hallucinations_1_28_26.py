@@ -54,6 +54,9 @@ import cohere
 import stripe
 from twilio.rest import Client
 import io
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 # === FILE EXTRACTION HELPER ===
 def extract_text_from_file(uploaded_file):
@@ -1000,6 +1003,41 @@ TWILIO_FROM_NUMBER = os.getenv("TWILIO_PHONE_NUMBER")
 twilio_client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN) if TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN else None
 TWILIO_AVAILABLE = bool(twilio_client)
 
+# === GMAIL SIGN-IN NOTIFICATIONS ===
+GMAIL_SENDER = "bdemsey@gmail.com"
+GMAIL_APP_PASSWORD = os.getenv("GMAIL_APP_PASSWORD")
+NOTIFY_EMAIL = "brian@hallucinations.cloud"
+
+def send_signin_notification(phone: str, email: str = "", event: str = "sign_in", plan: str = ""):
+    """Email bdemsey@gmail.com whenever a user signs in or registers."""
+    if not GMAIL_APP_PASSWORD:
+        print(f"[NOTIFY] Sign-in event: {event} | phone={phone} | email={email} | plan={plan}")
+        return
+    try:
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S UTC")
+        subject = f"Hallucinations.cloud — {'New Sign-Up' if event == 'register' else 'Sign-In'}"
+        body = f"""
+<h2>{'🆕 New User Registration' if event == 'register' else '🔑 User Sign-In'}</h2>
+<table style="font-family:monospace;border-collapse:collapse;">
+  <tr><td style="padding:4px 12px;"><b>Time:</b></td><td>{now}</td></tr>
+  <tr><td style="padding:4px 12px;"><b>Phone:</b></td><td>{phone}</td></tr>
+  <tr><td style="padding:4px 12px;"><b>Email:</b></td><td>{email or '(not provided)'}</td></tr>
+  <tr><td style="padding:4px 12px;"><b>Plan:</b></td><td>{plan or '(unknown)'}</td></tr>
+  <tr><td style="padding:4px 12px;"><b>Event:</b></td><td>{event}</td></tr>
+</table>
+"""
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = subject
+        msg["From"] = GMAIL_SENDER
+        msg["To"] = NOTIFY_EMAIL
+        msg.attach(MIMEText(body, "html"))
+
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+            server.login(GMAIL_SENDER, GMAIL_APP_PASSWORD)
+            server.sendmail(GMAIL_SENDER, NOTIFY_EMAIL, msg.as_string())
+    except Exception as e:
+        print(f"[NOTIFY] Email send failed: {e}")
+
 # Setup AI clients
 openai_client = OpenAI(api_key=openai_key) if openai_key else None
 # Configure Anthropic client with extended timeout for cloud deployments (Render cold starts)
@@ -1088,6 +1126,10 @@ def show_enhanced_landing_page():
         st.session_state.ctc_verified = False
     if 'ctc_synopsis' not in st.session_state:
         st.session_state.ctc_synopsis = None
+    if 'ctc_email' not in st.session_state:
+        st.session_state.ctc_email = ""
+    if 'ctc_email_saved' not in st.session_state:
+        st.session_state.ctc_email_saved = False
 
     # Step 1: Begin Free Trial
     col_left, col_right = st.columns([2, 3])
@@ -1097,61 +1139,91 @@ def show_enhanced_landing_page():
         if st.checkbox("Start Free Trial", key="ctc_start_trial"):
             st.session_state.ctc_step = max(st.session_state.ctc_step, 2)
 
-    # Step 2: Enter Phone Number and Send Code
+    # Step 2: Enter Email Address
     col_left, col_right = st.columns([2, 3])
     with col_left:
-        st.markdown("**2. Enter your phone number**")
+        st.markdown("**2. Enter your email address**")
     with col_right:
-        phone = st.text_input("Phone number", placeholder="+1 (555) 123-4567", key="ctc_phone_input", label_visibility="collapsed")
-        if phone:
-            st.session_state.ctc_phone = phone
-            # Show Send Code button
-            if not st.session_state.get('ctc_code_sent', False):
-                if st.button("📱 Send Code", key="ctc_send_code"):
-                    normalized_phone = validate_phone(phone)
-                    if normalized_phone:
-                        if send_verification_code(normalized_phone):
-                            st.session_state.ctc_code_sent = True
-                            st.session_state.ctc_normalized_phone = normalized_phone
-                            st.session_state.ctc_step = max(st.session_state.ctc_step, 3)
-                            st.rerun()
-                    else:
-                        st.error("Please enter a valid phone number")
-            else:
-                st.success("✓ Code sent!")
-                st.session_state.ctc_step = max(st.session_state.ctc_step, 3)
+        if not st.session_state.get('ctc_email_saved', False):
+            inp_col, btn_col, _ = st.columns([2, 1, 1])
+            with inp_col:
+                ctc_email = st.text_input("Email address", placeholder="you@example.com", key="ctc_email_input", label_visibility="collapsed")
+            with btn_col:
+                if ctc_email and '@' in ctc_email:
+                    if st.button("Save →", key="ctc_save_email", type="primary", use_container_width=True):
+                        st.session_state.ctc_email = ctc_email
+                        st.session_state.ctc_email_saved = True
+                        st.rerun()
+        else:
+            st.success(f"✓ {st.session_state.get('ctc_email', '')}")
 
-    # Step 3: Enter SMS Code and Verify
+    # Step 3: Enter Phone Number and Send Code
     col_left, col_right = st.columns([2, 3])
     with col_left:
-        st.markdown("**3. Enter your SMS authorization code**")
+        st.markdown("**3. Enter your phone number**")
     with col_right:
-        sms_code = st.text_input("SMS Code", placeholder="123456", key="ctc_sms_input", label_visibility="collapsed")
-        if sms_code and len(sms_code) >= 4 and not st.session_state.get('ctc_verified', False):
-            if st.button("✓ Verify Code", key="ctc_verify_code"):
-                normalized_phone = st.session_state.get('ctc_normalized_phone', st.session_state.get('ctc_phone', ''))
-                if verify_phone_code(normalized_phone, sms_code):
-                    st.session_state.ctc_verified = True
-                    st.session_state.ctc_step = max(st.session_state.ctc_step, 4)
-                    st.rerun()
-                else:
-                    st.error("Invalid code. Please try again.")
-        elif st.session_state.get('ctc_verified', False):
+        if not st.session_state.get('ctc_code_sent', False):
+            inp_col, btn_col, _ = st.columns([2, 1, 1])
+            with inp_col:
+                phone = st.text_input("Phone number", placeholder="+1 (555) 123-4567", key="ctc_phone_input", label_visibility="collapsed")
+            with btn_col:
+                if phone:
+                    st.session_state.ctc_phone = phone
+                    if st.button("Send →", key="ctc_send_code", type="primary", use_container_width=True):
+                        normalized_phone = validate_phone(phone)
+                        if normalized_phone:
+                            if send_verification_code(normalized_phone):
+                                st.session_state.ctc_code_sent = True
+                                st.session_state.ctc_normalized_phone = normalized_phone
+                                st.session_state.ctc_step = max(st.session_state.ctc_step, 3)
+                                st.rerun()
+                        else:
+                            st.error("Please enter a valid phone number")
+        else:
+            st.success("✓ Code sent to your phone!")
+            st.session_state.ctc_step = max(st.session_state.ctc_step, 3)
+
+    # Step 4: Enter SMS Code and Verify
+    col_left, col_right = st.columns([2, 3])
+    with col_left:
+        st.markdown("**4. Enter your SMS authorization code**")
+    with col_right:
+        if not st.session_state.get('ctc_verified', False):
+            inp_col, btn_col, _ = st.columns([2, 1, 1])
+            with inp_col:
+                sms_code = st.text_input("SMS Code", placeholder="123456", key="ctc_sms_input", label_visibility="collapsed")
+            with btn_col:
+                if sms_code and len(sms_code) >= 4:
+                    if st.button("Verify →", key="ctc_verify_code", type="primary", use_container_width=True):
+                        normalized_phone = st.session_state.get('ctc_normalized_phone', st.session_state.get('ctc_phone', ''))
+                        if verify_phone_code(normalized_phone, sms_code):
+                            st.session_state.ctc_verified = True
+                            st.session_state.ctc_step = max(st.session_state.ctc_step, 4)
+                            send_signin_notification(
+                                phone=normalized_phone,
+                                email=st.session_state.get('ctc_email', ''),
+                                event="sign_in",
+                                plan="free"
+                            )
+                            st.rerun()
+                        else:
+                            st.error("Invalid code. Please try again.")
+        else:
             st.success("✓ Verified")
 
-    # Step 4: Enter Query (wrapped in form so Enter key submits)
+    # Step 5: Enter Query (wrapped in form so Enter key submits)
     col_left, col_right = st.columns([2, 3])
     with col_left:
-        st.markdown("**4. Enter your query**")
+        st.markdown("**5. Enter your query**")
     with col_right:
         with st.form(key="ctc_query_form", clear_on_submit=False):
             user_query = st.text_area("Your question", placeholder="Ask anything...", height=80, label_visibility="collapsed")
             submit_query = st.form_submit_button("🚀 Submit", type="primary")
 
-    # Step 5: One Sentence Answer (shown after query)
+    # Step 6: One Sentence Answer (shown after query)
     col_left, col_right = st.columns([2, 3])
     with col_left:
-        st.markdown("**5. Here's your one-sentence answer**")
+        st.markdown("**6. Here's your one-sentence answer**")
     with col_right:
         if st.session_state.ctc_synopsis:
             with st.expander("📋 Synopsis", expanded=True):
@@ -1161,19 +1233,19 @@ def show_enhanced_landing_page():
         else:
             st.info("Submit a query above to see your answer")
 
-    # Step 6: Scroll for details
+    # Step 7: Scroll for details
     col_left, col_right = st.columns([2, 3])
     with col_left:
-        st.markdown("**6. Scroll down for detailed analysis from all 8 AI models**")
+        st.markdown("**7. Scroll down for detailed analysis from all 8 AI models**")
     with col_right:
         st.caption("⬇️ Detailed results appear below after you submit a query")
 
-    # Step 7: Next Query
+    # Step 8: Next Query
     col_left, col_right = st.columns([2, 3])
     with col_left:
-        st.markdown("**7. Enter your next query**")
+        st.markdown("**8. Enter your next query**")
     with col_right:
-        st.caption("Use the query box above (Step 4) for additional questions")
+        st.caption("Use the query box above (Step 5) for additional questions")
 
     st.markdown("---")
 
@@ -1184,8 +1256,8 @@ def show_enhanced_landing_page():
         st.session_state.authenticated = True
         st.session_state.run_analysis = True
         st.session_state.current_query = user_query
-        st.session_state.user_phone = phone if phone else "Demo User"
-        st.session_state.user_email = "demo@hallucinations.cloud"
+        st.session_state.user_phone = st.session_state.get('ctc_normalized_phone', st.session_state.get('ctc_phone', 'Demo User'))
+        st.session_state.user_email = st.session_state.get('ctc_email', 'demo@hallucinations.cloud')
         st.session_state.customer_id = "test_customer_id"
         st.session_state.subscription_status = "trialing"
         st.session_state.trial_end = (datetime.now() + timedelta(days=3)).isoformat()
@@ -2386,7 +2458,9 @@ def create_account_with_plan(phone, email, plan):
        st.session_state.customer_id = customer.id
        st.session_state.authenticated = True
        st.session_state.selected_plan = plan
-       
+
+       send_signin_notification(phone=phone, email=email, event="register", plan=plan)
+
        if plan == "trial":
            st.session_state.trial_end = datetime.now() + timedelta(days=3)
            st.session_state.show_landing = False  # Go directly to app for trial
@@ -2573,6 +2647,13 @@ def handle_successful_login(customer):
    st.session_state.user_email = customer.email
    st.session_state.customer_id = customer.id
    st.session_state.authenticated = True
+
+   send_signin_notification(
+       phone=customer.phone,
+       email=getattr(customer, 'email', '') or '',
+       event="sign_in",
+       plan=getattr(customer, 'metadata', {}).get('selected_plan', '') if hasattr(customer, 'metadata') else ''
+   )
 
    # Clear login state
    for key in ['pending_login_phone', 'pending_customer', 'show_login', 'existing_phone', 'test_login_bypass']:

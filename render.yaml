@@ -18,3 +18,5 @@ services:
         value: false
       - key: STREAMLIT_SERVER_ENABLE_XSRF_PROTECTION
         value: false
+      - key: GMAIL_APP_PASSWORD
+        sync: false  # Set manually in Render dashboard — never commit this value
