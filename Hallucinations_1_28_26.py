@@ -4518,7 +4518,8 @@ if st.session_state.get('run_analysis') and st.session_state.get('current_query'
    if cohere_key: available_models.append(call_cohere_sync)
    if deepseek_key: available_models.append(call_deepseek_sync)
    if openrouter_key: available_models.append(call_openrouter_sync)
-   if perplexity_key: available_models.append(call_perplexity_sync)
+   # Perplexity disabled — runaway billing issue June 2026
+   # if perplexity_key: available_models.append(call_perplexity_sync)
    if grok_key: available_models.append(call_grok_sync)
 
    if not available_models:
