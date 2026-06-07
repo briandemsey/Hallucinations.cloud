@@ -2391,6 +2391,13 @@ def send_verification_code(phone):
        st.success("✅ Demo verification code sent!")
        return True
 
+   # Hardwired bypass for owner testing
+   OWNER_PHONE = "+19492911422"
+   if phone == OWNER_PHONE or phone == "9492911422" or phone == "+1 9492911422":
+       st.session_state.mock_code = "123456"
+       st.success("✅ Verification code sent!")
+       return True
+
    if not twilio_client:
        # Development mode - use mock code
        st.session_state.mock_code = "123456"
@@ -2415,6 +2422,11 @@ def verify_phone_code(phone, code):
    DEMO_PHONE = "+15550100001"
    DEMO_CODE = "123456"
    if (phone == DEMO_PHONE or phone == "5550100001" or phone == "+1 5550100001") and code == DEMO_CODE:
+       return True
+
+   # Hardwired bypass for owner testing
+   OWNER_PHONE = "+19492911422"
+   if (phone == OWNER_PHONE or phone == "9492911422" or phone == "+1 9492911422") and code == "123456":
        return True
 
    if not twilio_client:
@@ -3613,7 +3625,7 @@ def call_claude_sync(prompt):
        return ("Claude", "[Claude unavailable: missing API key]")
 
    # Try newer model first, then fall back to older if needed
-   models_to_try = ["claude-3-5-haiku-20241022", "claude-3-haiku-20240307"]
+   models_to_try = ["claude-haiku-4-5-20251001", "claude-3-5-haiku-20241022", "claude-3-haiku-20240307"]
    max_retries = 3
 
    for model_name in models_to_try:
@@ -3647,13 +3659,14 @@ def call_claude_sync(prompt):
                break
            except Exception as e:
                return ("Claude", f"[Claude error: {str(e)}]")
+   return ("Claude", "[Claude error: all models unavailable]")
 
 def call_gemini_sync(prompt):
    if not google_key:
        return ("Gemini", "[Gemini unavailable: missing API key]")
 
    # Try stable model names in order (updated Nov 2024)
-   models_to_try = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"]
+   models_to_try = ["models/gemini-2.5-flash", "models/gemini-2.0-flash"]
    last_error = None
 
    for model_name in models_to_try:
@@ -3680,7 +3693,7 @@ def call_cohere_sync(prompt):
        co = cohere.Client(cohere_key)
        response = co.chat(
            message=prompt,
-           model='command-r-08-2024',
+           model='command-r-plus-08-2024',
            max_tokens=600,
            temperature=0.5
        )
@@ -3720,7 +3733,7 @@ def call_openrouter_sync(prompt):
            base_url="https://openrouter.ai/api/v1"
        )
        response = openrouter_client.chat.completions.create(
-           model="microsoft/wizardlm-2-8x22b",
+           model="google/gemma-4-31b-it:free",
            messages=[
                {"role": "system", "content": "You are a helpful assistant."},
                {"role": "user", "content": prompt}
@@ -3787,17 +3800,19 @@ def call_grok_sync(prompt):
        # Determine which Grok model to use.  Default to grok‑4 (the latest reasoning model),
        # but allow overriding via the GROK_MODEL_NAME environment variable.  If you have
        # access to Grok‑4 Heavy, set GROK_MODEL_NAME=grok-4-heavy when launching the app.
-       preferred_model = os.getenv("GROK_MODEL_NAME", "grok-4")
-       # Construct a minimal message list without any custom system prompt so that
-       # Grok responds with its native tone and behaviour.
        messages = [{"role": "user", "content": prompt}]
-       # Call the xAI API without specifying temperature or max_tokens; this allows Grok to
-       # determine response length and creativity based on its defaults.
-       response = grok_client.chat.completions.create(
-           model=preferred_model,
-           messages=messages
-       )
-       return ("Grok", response.choices[0].message.content.strip())
+       for model_name in ["grok-3", "grok-3-mini", "grok-2"]:
+           try:
+               response = grok_client.chat.completions.create(
+                   model=model_name,
+                   messages=messages
+               )
+               return ("Grok", response.choices[0].message.content.strip())
+           except Exception as e:
+               if "not found" in str(e).lower() or "400" in str(e):
+                   continue
+               return ("Grok", f"[Grok error: {str(e)}]")
+       return ("Grok", "[Grok error: no available models]")
    except Exception as e:
        return ("Grok", f"[Grok error: {str(e)}]")
 def show_followup_interface(previous_query, previous_results):
@@ -3825,6 +3840,7 @@ def show_followup_interface(previous_query, previous_results):
         st.session_state.current_query = context_query
         st.session_state.run_analysis = True
         st.session_state.is_followup = True
+        st.session_state.last_query_text = followup_question
         st.rerun()
 
     st.caption(f"Previous query: {previous_query[:100]}...")
@@ -4427,48 +4443,54 @@ if not can_query:
 if st.session_state.conversation_document:
    display_conversation_document()
 
-# Query input with moderation
-st.markdown("##### Enter your question:")
-st.caption("🛡️ All queries are checked for content policy compliance using Anthropic AI")
+# Query input with moderation — hidden when results are displayed
+if not st.session_state.get('last_query_text'):
+    st.markdown("##### Enter your question:")
+    st.caption("🛡️ All queries are checked for content policy compliance using Anthropic AI")
 
-# Show conversation context
-if st.session_state.conversation_count > 0:
-   st.info(f"💬 Conversation Mode Active - Query #{st.session_state.conversation_count + 1}")
+    # Show conversation context
+    if st.session_state.conversation_count > 0:
+       st.info(f"💬 Conversation Mode Active - Query #{st.session_state.conversation_count + 1}")
 
-# File attachment BEFORE form (file_uploader doesn't work well inside forms)
-st.caption("📎 Attach file (optional) · PDF, TXT, CSV, DOCX · 5MB max")
-uploaded_file = st.file_uploader(
-    "Attach file",
-    type=['pdf', 'txt', 'csv', 'docx'],
-    label_visibility="collapsed",
-    key="file_attachment"
-)
-
-# Validate file size and show status
-if uploaded_file and uploaded_file.size > 5_000_000:
-    st.error("⚠️ File exceeds 5MB limit.")
-    uploaded_file = None
-elif uploaded_file:
-    st.success(f"📎 {uploaded_file.name} ({uploaded_file.size // 1024}KB)")
-
-# Query input wrapped in form so Enter key submits
-with st.form(key="main_query_form", clear_on_submit=False):
-    user_query = st.text_input(
-       "Ask anything - continue the conversation or start a new topic:",
-       placeholder="Enter your question here...",
-       help="Your query will be added to the conversation document along with all model responses"
+    # File attachment BEFORE form (file_uploader doesn't work well inside forms)
+    st.caption("📎 Attach file (optional) · PDF, TXT, CSV, DOCX · 5MB max")
+    uploaded_file = st.file_uploader(
+        "Attach file",
+        type=['pdf', 'txt', 'csv', 'docx'],
+        label_visibility="collapsed",
+        key="file_attachment"
     )
 
-    col1, col2 = st.columns([3, 1])
-    with col1:
-        submit_button = st.form_submit_button("🚀 Submit Query", type="primary")
-    with col2:
-        analysis_depth = st.selectbox(
-            "Analysis Depth:",
-            ["Quick", "Standard", "Comprehensive"],
-            index=1,
-            help="Quick: Basic comparison, Standard: +Red/Blue, Comprehensive: Full Red/Blue/Purple"
+    # Validate file size and show status
+    if uploaded_file and uploaded_file.size > 5_000_000:
+        st.error("⚠️ File exceeds 5MB limit.")
+        uploaded_file = None
+    elif uploaded_file:
+        st.success(f"📎 {uploaded_file.name} ({uploaded_file.size // 1024}KB)")
+
+    # Query input wrapped in form so Enter key submits
+    with st.form(key="main_query_form", clear_on_submit=False):
+        user_query = st.text_input(
+           "Ask anything - continue the conversation or start a new topic:",
+           placeholder="Enter your question here...",
+           help="Your query will be added to the conversation document along with all model responses"
         )
+
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            submit_button = st.form_submit_button("🚀 Submit Query", type="primary")
+        with col2:
+            analysis_depth = st.selectbox(
+                "Analysis Depth:",
+                ["Quick", "Standard", "Comprehensive"],
+                index=1,
+                help="Quick: Basic comparison, Standard: +Red/Blue, Comprehensive: Full Red/Blue/Purple"
+            )
+else:
+    uploaded_file = None
+    user_query = None
+    submit_button = False
+    analysis_depth = "Standard"
 
 # Process query after form submission
 if submit_button and user_query:
@@ -4482,6 +4504,7 @@ if submit_button and user_query:
                 full_query = f"{user_query}\n\n--- Attached File: {uploaded_file.name} ---\n{file_content}"
         st.session_state.run_analysis = True
         st.session_state.current_query = full_query
+        st.session_state.last_query_text = user_query
 
 # Main analysis execution
 if st.session_state.get('run_analysis') and st.session_state.get('current_query'):
@@ -4502,6 +4525,9 @@ if st.session_state.get('run_analysis') and st.session_state.get('current_query'
        st.error("No API keys available! Please set up at least one API key.")
    else:
        # === PHASE 1: COLLECT ALL DATA (no display yet) ===
+
+       # Show the question immediately so it's visible during the entire analysis
+       st.markdown(f"<p style='font-size:2.5rem; font-weight:bold;'>Your question so far: {query}</p>", unsafe_allow_html=True)
 
        # Get web search context for current information
        with st.spinner("🔍 Searching web for current information..."):
@@ -4776,7 +4802,7 @@ if st.session_state.get('run_analysis') and st.session_state.get('current_query'
            del st.session_state.current_query
            
        # === FOLLOW-UP QUESTION INTERFACE ===
-       if not st.session_state.get('run_analysis', False):  # Only show after analysis is complete
+       if not st.session_state.get('run_analysis', False):
            followup_question = show_followup_interface(query, results)
               
        # Show content policy information

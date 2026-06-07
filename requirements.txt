@@ -16,3 +16,5 @@ PyJWT==2.10.1
 PyPDF2==3.0.1
 python-docx==1.1.2
 tavily-python==0.5.0
+playwright
+pytest-playwright
