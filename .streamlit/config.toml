@@ -1,0 +1,7 @@
+# Oct 2026: white color scheme for every visitor, whatever their computer's light/dark setting.
+[theme]
+base = "light"
+primaryColor = "#d42f4f"
+backgroundColor = "#ffffff"
+secondaryBackgroundColor = "#f3f6fb"
+textColor = "#1a1a2e"
