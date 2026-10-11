@@ -4323,6 +4323,56 @@ html, body, [data-testid="stAppViewContainer"], .stMarkdown, .stTextInput input,
 .stMarkdown p.hc-section, .hc-section { font-size: 1.25rem !important; font-weight: 800; color: #1a1a2e; margin: 28px 0 8px; }
 .hc-foot { color: #4a5068; font-size: 0.92rem; border-top: 1px solid #d9dfeb; margin-top: 46px; padding-top: 14px; }
 .hc-foot a { color: #4a5068; }
+/* Hold the white scheme even when a link (embed_options=dark_theme) or a remembered
+   browser setting asks Streamlit for its dark theme. */
+:root, html, body { color-scheme: light !important; }
+html, body, .stApp, [data-testid="stAppViewContainer"], [data-testid="stMain"], .main,
+[data-testid="stHeader"], [data-testid="stBottom"], [data-testid="stBottomBlockContainer"] {
+    background-color: #ffffff !important; color: #1a1a2e !important;
+}
+.stApp h1, .stApp h2, .stApp h3, .stApp h4, .stApp h5, .stApp h6,
+.stApp p, .stApp li, .stApp span, .stApp label, .stApp strong, .stApp em, .stApp td, .stApp th,
+[data-testid="stWidgetLabel"] p, [data-testid="stCaptionContainer"], [data-testid="stMarkdownContainer"] { color: #1a1a2e; }
+.stApp a { color: #b3203f; }
+.stApp .hc-foot, .stApp .hc-foot a { color: #4a5068; }
+.stApp .hc-tag { color: #d42f4f; }
+.stApp .hc-lead, .stApp .hc-small, .stApp .hc-question { color: #4a5068; }
+[data-testid="stMetricValue"], [data-testid="stMetricValue"] div { color: #1a1a2e !important; }
+.stTextInput input, .stTextArea textarea, [data-baseweb="input"], [data-baseweb="textarea"],
+[data-baseweb="base-input"] {
+    background-color: #f3f6fb !important; color: #1a1a2e !important;
+    -webkit-text-fill-color: #1a1a2e !important; caret-color: #1a1a2e !important;
+}
+[data-baseweb="input"], [data-baseweb="textarea"] { border-color: #c9d1e0 !important; }
+.stTextInput input::placeholder, .stTextArea textarea::placeholder {
+    color: #6b7289 !important; -webkit-text-fill-color: #6b7289 !important; opacity: 1 !important;
+}
+[data-testid="InputInstructions"], [data-testid="InputInstructions"] span { color: #6b7289 !important; }
+[data-testid="stForm"] { border-color: #d9dfeb !important; background-color: #ffffff !important; }
+[data-testid="stExpander"], [data-testid="stExpander"] details {
+    background-color: #ffffff !important; border-color: #d9dfeb !important;
+}
+[data-testid="stExpander"] summary, [data-testid="stExpander"] summary p, [data-testid="stExpander"] summary span,
+[data-testid="stExpander"] summary svg { color: #1a1a2e !important; fill: #1a1a2e !important; }
+[data-testid="stExpander"] summary:hover, [data-testid="stExpander"] summary:hover p { color: #d42f4f !important; }
+.stButton button, [data-testid="stFormSubmitButton"] button, [data-testid^="baseButton-secondary"] {
+    background-color: #ffffff !important; color: #1a1a2e !important; border: 1px solid #c9d1e0 !important;
+}
+.stButton button p, .stButton button div, .stButton button span, [data-testid="stFormSubmitButton"] button p, [data-testid="stFormSubmitButton"] button div, [data-testid="stFormSubmitButton"] button span { color: inherit !important; }
+.stButton button:hover, [data-testid="stFormSubmitButton"] button:hover { border-color: #d42f4f !important; color: #d42f4f !important; }
+.stButton button[kind="primary"], .stButton button[kind="primaryFormSubmit"],
+[data-testid="stFormSubmitButton"] button[kind="primary"], [data-testid="stFormSubmitButton"] button[kind="primaryFormSubmit"],
+[data-testid^="baseButton-primary"] {
+    background-color: #d42f4f !important; color: #ffffff !important; border: 1px solid #d42f4f !important;
+}
+.stButton button[kind="primary"]:hover, [data-testid="stFormSubmitButton"] button[kind="primaryFormSubmit"]:hover,
+[data-testid^="baseButton-primary"]:hover { background-color: #b3203f !important; color: #ffffff !important; }
+[data-testid="stAlert"], [data-testid="stNotification"], [data-baseweb="notification"] { background-color: #f3f6fb !important; }
+[data-testid="stAlert"] p, [data-testid="stNotification"] p, [data-baseweb="notification"] p { color: #1a1a2e !important; }
+[data-testid="stStatusWidget"], [data-testid="stStatusWidget"] label, [data-testid="stStatusWidget"] span, [data-testid="stSpinner"] p, [data-testid="stSpinner"] div, .stSpinner p, .stSpinner div { color: #1a1a2e !important; }
+[data-testid="stStatusContainer"], [data-testid="stStatusContainer"] details { background-color: #ffffff !important; border-color: #d9dfeb !important; }
+.stApp code, .stApp pre { background-color: #f3f6fb !important; color: #1a1a2e !important; }
+hr { border-color: #d9dfeb !important; }
 </style>
 """
 
