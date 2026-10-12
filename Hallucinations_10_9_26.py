@@ -3728,6 +3728,10 @@ def call_qwen_sync(prompt):
              f"tokens_out={getattr(usage, 'completion_tokens', '?')}", flush=True)
        if not text:
            return ("Qwen", f"[Qwen error: empty answer, finish={choice.finish_reason}]")
+       if choice.finish_reason in ("error", "content_filter"):
+           # Oct 11 2026: on some topics (Tiananmen 1989 in testing) the provider stops Qwen mid-word.
+           # Show what arrived, and say plainly that it was cut off.
+           text = text + "\n\n*Qwen's answer was cut off here by its provider.*"
        return ("Qwen", text)
    except Exception as e:
        return ("Qwen", f"[Qwen error: {str(e)}]")
