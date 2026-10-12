@@ -1430,7 +1430,7 @@ def show_enhanced_landing_page():
     col1, col2, col3, col4 = st.columns(4)
     col5, col6, col7, col8 = st.columns(4)
     
-    models = ["GPT-4o", "Claude Haiku 4.5", "Gemini 2.5 Flash", "Grok 4.3", "Cohere Command R+", "DeepSeek", "OpenRouter", "Perplexity (paused)"]
+    models = ["GPT-4o", "Claude Haiku 4.5", "Gemini 2.5 Flash", "Grok 4.3", "Cohere Command R+", "Qwen 3.8 Flash", "OpenRouter", "Perplexity (paused)"]
     cols = [col1, col2, col3, col4, col5, col6, col7, col8]
     
     for i, model in enumerate(models):
@@ -2228,7 +2228,7 @@ def show_html_landing_page():
                    <div class="model-card">Gemini</div>
                    <div class="model-card">Grok</div>
                    <div class="model-card">Cohere</div>
-                   <div class="model-card">Deepseek</div>
+                   <div class="model-card">Qwen</div>
                    <div class="model-card">OpenRouter</div>
                    <div class="model-card">Perplexity</div>
                </div>
@@ -3702,6 +3702,36 @@ def call_deepseek_sync(prompt):
    except Exception as e:
        return ("Deepseek", f"[Deepseek error: {str(e)}]")
 
+# Qwen (Alibaba) took DeepSeek's seat on Oct 11 2026. It is reached through the OpenRouter key,
+# so it needs no account of its own. Paid model: it draws on the OpenRouter credit balance.
+QWEN_MODEL = "qwen/qwen3.8-flash"
+
+def call_qwen_sync(prompt):
+   if not openrouter_key:
+       return ("Qwen", "[Qwen unavailable: missing OpenRouter API key]")
+   try:
+       qwen_client = OpenAI(api_key=openrouter_key, base_url="https://openrouter.ai/api/v1")
+       response = qwen_client.chat.completions.create(
+           model=QWEN_MODEL,
+           messages=[
+               {"role": "system", "content": "You are a helpful assistant."},
+               {"role": "user", "content": prompt}
+           ],
+           temperature=0.5,
+           max_tokens=2500,   # Qwen reasons before it answers; the reasoning uses part of this allowance
+           timeout=40,
+       )
+       choice = response.choices[0]
+       text = (choice.message.content or "").strip()
+       usage = getattr(response, "usage", None)
+       print(f"QWEN finish={choice.finish_reason} chars={len(text)} "
+             f"tokens_out={getattr(usage, 'completion_tokens', '?')}", flush=True)
+       if not text:
+           return ("Qwen", f"[Qwen error: empty answer, finish={choice.finish_reason}]")
+       return ("Qwen", text)
+   except Exception as e:
+       return ("Qwen", f"[Qwen error: {str(e)}]")
+
 # Free OpenRouter models, tried in order. Free models are often busy ("rate-limited upstream"),
 # so the next one is tried when one is busy. List checked against openrouter.ai/api/v1/models, Oct 9 2026.
 OPENROUTER_FREE_MODELS = [
@@ -4291,6 +4321,7 @@ HC_MODEL_NAMES = {
     "Gemini": "Google Gemini",
     "Cohere": "Cohere",
     "Deepseek": "DeepSeek",
+    "Qwen": "Alibaba Qwen",
     "OpenRouter": "OpenRouter",
     "Perplexity": "Perplexity",
     "Grok": "xAI Grok",
@@ -4542,7 +4573,7 @@ def hc_run_pipeline(question, model_query, status=None, search_query=None):
     if anthropic_key: callers.append(call_claude_sync)
     if google_key: callers.append(call_gemini_sync)
     if cohere_key: callers.append(call_cohere_sync)
-    if deepseek_key: callers.append(call_deepseek_sync)
+    if openrouter_key: callers.append(call_qwen_sync)
     if openrouter_key: callers.append(call_openrouter_sync)
     # Perplexity back on Oct 9 2026. Spending is capped on Perplexity's side:
     # prepaid $20, auto reload off, so the key stops when the credit runs out.
@@ -4893,7 +4924,7 @@ with st.sidebar:
    st.divider()
    
    st.markdown("### Models in Use")
-   models_list = ["GPT-4o", "Claude Haiku 4.5", "Gemini 2.5 Flash", "Grok 4.3", "Cohere Command R+", "DeepSeek", "OpenRouter", "Perplexity (paused)"]
+   models_list = ["GPT-4o", "Claude Haiku 4.5", "Gemini 2.5 Flash", "Grok 4.3", "Cohere Command R+", "Qwen 3.8 Flash", "OpenRouter", "Perplexity (paused)"]
    for model in models_list:
        st.markdown(f"- {model}")
 
@@ -4960,7 +4991,7 @@ with st.expander("🔌 API Key Status", expanded=False):
        st.markdown(f"OpenRouter: {'✅' if openrouter_key else '❌'}")
        st.markdown(f"Grok: {'✅' if grok_key else '❌'}")
        st.markdown(f"Perplexity: {'✅' if perplexity_key else '❌'}")
-       st.markdown(f"Deepseek: {'✅' if deepseek_key else '❌'}")
+       st.markdown(f"Qwen: {'✅' if openrouter_key else '❌'}")
 
 # === ENHANCED MAIN QUERY INTERFACE ===
 st.subheader("🔍 Compare LLMs - Continuous Conversation")
@@ -5050,7 +5081,7 @@ if st.session_state.get('run_analysis') and st.session_state.get('current_query'
    if anthropic_key: available_models.append(call_claude_sync)
    if google_key: available_models.append(call_gemini_sync)
    if cohere_key: available_models.append(call_cohere_sync)
-   if deepseek_key: available_models.append(call_deepseek_sync)
+   if openrouter_key: available_models.append(call_qwen_sync)
    if openrouter_key: available_models.append(call_openrouter_sync)
    # Perplexity disabled — runaway billing issue June 2026
    # if perplexity_key: available_models.append(call_perplexity_sync)
